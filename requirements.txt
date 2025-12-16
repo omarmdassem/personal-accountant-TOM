@@ -5,3 +5,4 @@ python-multipart
 sqlmodel
 python-dotenv
 itsdangerous
+bcrypt
