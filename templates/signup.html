@@ -1,19 +1,44 @@
 {% extends "_base.html" %}
 
 {% block content %}
-  <h1>Create account</h1>
+  <h1 class="text-2xl font-semibold mb-4">Create account</h1>
 
   {% if error %}
-    <p style="color:red;">{{ error }}</p>
+    <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+      {{ error }}
+    </div>
   {% endif %}
 
-  <form method="post" action="/signup">
-    <label>Email</label><br>
-    <input name="email" type="email" required><br><br>
+  <form method="post" action="/signup" class="space-y-3 max-w-md rounded-md border bg-white p-4">
+    <div>
+      <label class="block text-sm text-gray-700">Email</label>
+      <input
+        name="email"
+        type="email"
+        required
+        class="mt-1 w-full rounded-md border px-3 py-2"
+      />
+    </div>
 
-    <label>Password</label><br>
-    <input name="password" type="password" minlength="8" required><br><br>
+    <div>
+      <label class="block text-sm text-gray-700">Password</label>
+      <input
+        name="password"
+        type="password"
+        minlength="8"
+        required
+        class="mt-1 w-full rounded-md border px-3 py-2"
+      />
+      <p class="mt-1 text-xs text-gray-500">Minimum 8 characters.</p>
+    </div>
 
-    <button type="submit">Create account</button>
+    <button type="submit" class="rounded-md bg-gray-900 px-4 py-2 text-white hover:bg-black">
+      Create account
+    </button>
+
+    <p class="text-sm text-gray-600">
+      Already have an account?
+      <a href="/login" class="text-blue-700 hover:underline">Log in</a>
+    </p>
   </form>
 {% endblock %}

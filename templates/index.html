@@ -1,19 +1,39 @@
 {% extends "_base.html" %}
 
 {% block content %}
-  <h1>{{ title }}</h1>
+  <h1 class="text-2xl font-semibold mb-2">{{ title or "Personal Accountant" }}</h1>
 
   {% if user_id %}
-    <p>Logged in as user #{{ user_id }}</p>
+    <div class="mb-4 rounded-md border bg-white px-4 py-3">
+      <p class="text-sm text-gray-700">Logged in as user <span class="font-medium">#{{ user_id }}</span></p>
+      <p class="mt-2">
+        <a href="/dashboard" class="text-sm text-blue-700 hover:underline">Go to dashboard →</a>
+      </p>
+    </div>
   {% else %}
-    <p>You are not logged in.</p>
+    <div class="mb-4 rounded-md border bg-white px-4 py-3">
+      <p class="text-sm text-gray-700">You are not logged in.</p>
+      <p class="mt-2 text-sm">
+        <a href="/login" class="text-blue-700 hover:underline">Log in</a>
+        <span class="mx-1 text-gray-300">|</span>
+        <a href="/signup" class="text-blue-700 hover:underline">Sign up</a>
+      </p>
+    </div>
   {% endif %}
 
-  <hr>
+  <div class="rounded-md border bg-white px-4 py-4">
+    <div class="flex items-center gap-3">
+      <button
+        class="rounded-md bg-gray-900 px-4 py-2 text-white hover:bg-black"
+        hx-get="/ping"
+        hx-target="#result"
+        hx-swap="innerHTML"
+      >
+        Ping server
+      </button>
+      <span class="text-sm text-gray-500">HTMX partial update demo</span>
+    </div>
 
-  <button hx-get="/ping" hx-target="#result" hx-swap="innerHTML">
-    Ping server
-  </button>
-
-  <div id="result" style="margin-top: 12px;"></div>
+    <div id="result" class="mt-4 text-sm text-gray-700"></div>
+  </div>
 {% endblock %}

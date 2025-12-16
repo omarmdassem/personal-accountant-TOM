@@ -3,30 +3,45 @@
   <head>
     <meta charset="utf-8" />
     <title>{{ title or "Personal Accountant" }}</title>
+
+    <!-- Tailwind via CDN (fast dev setup) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   </head>
 
-  <body>
-    <header style="margin-bottom: 16px;">
-      <strong><a href="/" style="text-decoration:none;">Personal Accountant</a></strong>
-      <span style="margin-left: 12px;">
-        <a href="/">Home</a>
-        {% if user_id %}
-          · <a href="/dashboard">Dashboard</a>
-        {% endif %}
-      </span>
+  <body class="min-h-screen bg-gray-50 text-gray-900">
+    <header class="border-b bg-white">
+      <div class="mx-auto max-w-4xl px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <a href="/" class="font-semibold">Personal Accountant</a>
+          <nav class="text-sm text-gray-600 flex items-center gap-3">
+            <a href="/" class="hover:text-gray-900">Home</a>
+            {% if user_id %}
+              <a href="/dashboard" class="hover:text-gray-900">Dashboard</a>
+            {% endif %}
+          </nav>
+        </div>
 
-      <span style="float:right;">
-        {% if user_id %}
-          <form method="post" action="/logout" style="display:inline;">
-            <button type="submit">Log out</button>
-          </form>
-        {% else %}
-          <a href="/login">Log in</a> · <a href="/signup">Sign up</a>
-        {% endif %}
-      </span>
+        <div class="text-sm">
+          {% if user_id %}
+            <form method="post" action="/logout" class="inline">
+              <button type="submit" class="rounded-md border px-3 py-1.5 hover:bg-gray-50">
+                Log out
+              </button>
+            </form>
+          {% else %}
+            <a href="/login" class="hover:underline">Log in</a>
+            <span class="mx-1 text-gray-300">|</span>
+            <a href="/signup" class="hover:underline">Sign up</a>
+          {% endif %}
+        </div>
+      </div>
     </header>
 
-    {% block content %}{% endblock %}
+    <main class="mx-auto max-w-4xl px-4 py-6">
+      {% block content %}{% endblock %}
+    </main>
   </body>
 </html>

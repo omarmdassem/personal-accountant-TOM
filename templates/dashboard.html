@@ -1,6 +1,14 @@
 {% extends "_base.html" %}
 
 {% block content %}
-  <h1>Dashboard</h1>
-  <p>Welcome! You are user #{{ user_id }}.</p>
+  <h1 class="text-2xl font-semibold mb-2">Dashboard</h1>
+
+  <div class="rounded-md border bg-white px-4 py-3">
+    <p class="text-sm text-gray-700">
+      Welcome! You are user <span class="font-medium">#{{ user_id }}</span>.
+    </p>
+    <p class="mt-2 text-sm text-gray-600">
+      Next: we’ll add Transactions (create + list) here.
+    </p>
+  </div>
 {% endblock %}
