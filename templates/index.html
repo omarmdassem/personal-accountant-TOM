@@ -11,10 +11,14 @@
 
     {% if user_id %}
       <p>Logged in as user #{{ user_id }}</p>
+      <form method="post" action="/logout" style="display:inline;">
+        <button type="submit">Log out</button>
+      </form>
     {% else %}
-      <p><a href="/signup">Sign up</a></p>
+      <p>
+        <a href="/signup">Sign up</a> · <a href="/login">Log in</a>
+      </p>
     {% endif %}
-
     <hr>
 
     <button hx-get="/ping" hx-target="#result" hx-swap="innerHTML">
