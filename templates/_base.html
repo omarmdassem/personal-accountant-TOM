@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>{{ title or "Personal Accountant" }}</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  </head>
+
+  <body>
+    <header style="margin-bottom: 16px;">
+      <strong><a href="/" style="text-decoration:none;">Personal Accountant</a></strong>
+      <span style="margin-left: 12px;">
+        <a href="/">Home</a>
+        {% if user_id %}
+          · <a href="/dashboard">Dashboard</a>
+        {% endif %}
+      </span>
+
+      <span style="float:right;">
+        {% if user_id %}
+          <form method="post" action="/logout" style="display:inline;">
+            <button type="submit">Log out</button>
+          </form>
+        {% else %}
+          <a href="/login">Log in</a> · <a href="/signup">Sign up</a>
+        {% endif %}
+      </span>
+    </header>
+
+    {% block content %}{% endblock %}
+  </body>
+</html>
