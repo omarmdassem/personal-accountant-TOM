@@ -5,8 +5,12 @@ from datetime import datetime
 from fastapi.responses import HTMLResponse
 from sqlalchemy import text
 from .db import engine
+from starlette.middleware.sessions import SessionMiddleware
+from .config import settings
+from .init_db import init_db
 
 app = FastAPI()
+app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
 templates = Jinja2Templates(directory="templates")
 
 @app.get("/", response_class=HTMLResponse)
@@ -24,3 +28,7 @@ def health():
     with engine.connect() as conn:
         conn.execute(text("SELECT 1"))
     return {"status": "ok"}
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
