@@ -1,8 +1,17 @@
 <!doctype html>
 <html>
-  <head><meta charset="utf-8"><title>{{ title }}</title></head>
+  <head>
+    <meta charset="utf-8">
+    <title>{{ title }}</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  </head>
   <body>
     <h1>{{ title }}</h1>
-    <p>If you can see this, routing + Jinja templates work.</p>
+
+    <button hx-get="/ping" hx-target="#result" hx-swap="innerHTML">
+      Ping server
+    </button>
+
+    <div id="result" style="margin-top: 12px;"></div>
   </body>
 </html>
