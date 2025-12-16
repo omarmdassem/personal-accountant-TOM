@@ -1,12 +1,21 @@
 <!doctype html>
 <html>
   <head>
-    <meta charset="utf-8">
+    <meta charset="utf-8" />
     <title>{{ title }}</title>
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   </head>
+
   <body>
     <h1>{{ title }}</h1>
+
+    {% if user_id %}
+      <p>Logged in as user #{{ user_id }}</p>
+    {% else %}
+      <p><a href="/signup">Sign up</a></p>
+    {% endif %}
+
+    <hr>
 
     <button hx-get="/ping" hx-target="#result" hx-swap="innerHTML">
       Ping server
