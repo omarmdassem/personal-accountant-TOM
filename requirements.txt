@@ -6,3 +6,5 @@ sqlmodel
 python-dotenv
 itsdangerous
 bcrypt
+pytest
+httpx
