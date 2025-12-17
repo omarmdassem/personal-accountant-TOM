@@ -33,12 +33,32 @@
 
             <div>
               <label class="block text-sm text-gray-700">Category</label>
-              <select name="category_id" class="mt-1 w-full rounded-md border px-3 py-2">
-                {% for c in categories %}
-                  <option value="{{ c.id }}">{{ c.icon or "" }} {{ c.name }}</option>
-                {% endfor %}
+              <select
+                name="subcategory_id"
+                id="subcategory-select"
+                class="mt-1 w-full rounded-md border px-3 py-2"
+                hx-get="/budget/subcategories"
+                hx-trigger="load"
+                hx-include="closest form"
+                hx-target="#subcategory-select"
+                hx-swap="innerHTML"
+              >
+                <option value="">(none)</option>
               </select>
+
+              <p class="mt-1 text-xs text-gray-500">Changing category loads subcategories.</p>
             </div>
+          </div>
+
+          <div>
+            <label class="block text-sm text-gray-700">Subcategory (optional)</label>
+            <select
+              name="subcategory_id"
+              id="subcategory-select"
+              class="mt-1 w-full rounded-md border px-3 py-2"
+            >
+              <option value="">(none)</option>
+            </select>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -87,17 +107,33 @@
       {% else %}
         <ul class="divide-y">
           {% for b in budgets %}
+            {% set cat = categories_by_id.get(b.category_id) %}
+            {% set sub = (subcategories_by_id.get(b.subcategory_id) if b.subcategory_id else None) %}
+
             <li class="px-4 py-3 flex items-center justify-between">
               <div>
                 <div class="font-medium">
-                  {{ b.type.value|capitalize }} · {{ cents_to_euros_str(b.amount_cents) }} {{ b.currency }}
+                  {{ b.type.value|capitalize }}
+                  · {{ cents_to_euros_str(b.amount_cents) }} {{ b.currency }}
                 </div>
+
                 <div class="text-sm text-gray-600">
                   One-time on {{ b.one_time_date }}
-                  · Category #{{ b.category_id }}
+                  ·
+                  {% if cat %}
+                    {{ cat.icon or "" }} {{ cat.name }}
+                  {% else %}
+                    Category #{{ b.category_id }}
+                  {% endif %}
+
+                  {% if sub %}
+                    · {{ sub.icon or "" }} {{ sub.name }}
+                  {% endif %}
+
                   {% if b.note %} · {{ b.note }}{% endif %}
                 </div>
               </div>
+
               <div class="text-xs text-gray-400">#{{ b.id }}</div>
             </li>
           {% endfor %}
