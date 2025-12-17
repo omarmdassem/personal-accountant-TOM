@@ -7,6 +7,7 @@ from .routes.pages import router as pages_router
 from .routes.auth import router as auth_router
 from .routes.dashboard import router as dashboard_router
 from .routes.categories import router as categories_router
+from .routes.budgets import router as budgets_router
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
@@ -19,4 +20,5 @@ app.include_router(pages_router)
 app.include_router(auth_router)
 app.include_router(dashboard_router)
 app.include_router(categories_router)
+app.include_router(budgets_router)
 

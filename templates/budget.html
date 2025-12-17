@@ -1,0 +1,108 @@
+{% extends "_base.html" %}
+
+{% block content %}
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-2xl font-semibold">Budget</h1>
+  </div>
+
+  {% if error %}
+    <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+      {{ error }}
+    </div>
+  {% endif %}
+
+  <div class="grid gap-6 lg:grid-cols-2">
+    <section class="rounded-md border bg-white p-4">
+      <h2 class="font-medium mb-3">Add one-time budget item</h2>
+
+      {% if categories|length == 0 %}
+        <p class="text-sm text-gray-600">
+          You need at least one category first.
+          <a class="text-blue-700 hover:underline" href="/categories">Create categories →</a>
+        </p>
+      {% else %}
+        <form method="post" action="/budget" class="space-y-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm text-gray-700">Type</label>
+              <select name="budget_type" class="mt-1 w-full rounded-md border px-3 py-2">
+                <option value="expense">Expense</option>
+                <option value="income">Income</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm text-gray-700">Category</label>
+              <select name="category_id" class="mt-1 w-full rounded-md border px-3 py-2">
+                {% for c in categories %}
+                  <option value="{{ c.id }}">{{ c.icon or "" }} {{ c.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="sm:col-span-2">
+              <label class="block text-sm text-gray-700">Amount (EUR)</label>
+              <input
+                name="amount_eur"
+                type="text"
+                required
+                class="mt-1 w-full rounded-md border px-3 py-2"
+                placeholder="e.g., 12.99"
+              />
+              <p class="mt-1 text-xs text-gray-500">
+                You enter euros; we store cents internally to avoid rounding errors.
+              </p>
+            </div>
+
+            <div>
+              <label class="block text-sm text-gray-700">Currency</label>
+              <input name="currency" value="EUR" class="mt-1 w-full rounded-md border px-3 py-2" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm text-gray-700">Date</label>
+            <input name="one_time_date" type="date" required class="mt-1 w-full rounded-md border px-3 py-2" />
+          </div>
+
+          <div>
+            <label class="block text-sm text-gray-700">Note (optional)</label>
+            <input name="note" class="mt-1 w-full rounded-md border px-3 py-2" placeholder="e.g., Annual insurance" />
+          </div>
+
+          <button class="rounded-md bg-gray-900 px-4 py-2 text-white hover:bg-black">
+            Add budget
+          </button>
+        </form>
+      {% endif %}
+    </section>
+
+    <section class="rounded-md border bg-white">
+      <div class="border-b px-4 py-2 text-sm text-gray-600">Your budget items</div>
+
+      {% if budgets|length == 0 %}
+        <div class="px-4 py-4 text-sm text-gray-600">No budget items yet.</div>
+      {% else %}
+        <ul class="divide-y">
+          {% for b in budgets %}
+            <li class="px-4 py-3 flex items-center justify-between">
+              <div>
+                <div class="font-medium">
+                  {{ b.type.value|capitalize }} · {{ cents_to_euros_str(b.amount_cents) }} {{ b.currency }}
+                </div>
+                <div class="text-sm text-gray-600">
+                  One-time on {{ b.one_time_date }}
+                  · Category #{{ b.category_id }}
+                  {% if b.note %} · {{ b.note }}{% endif %}
+                </div>
+              </div>
+              <div class="text-xs text-gray-400">#{{ b.id }}</div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </section>
+  </div>
+{% endblock %}

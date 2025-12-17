@@ -16,17 +16,19 @@
       <div class="mx-auto max-w-4xl px-4 py-3 flex items-center justify-between">
         <div class="flex items-center gap-4">
           <a href="/" class="font-semibold">Personal Accountant</a>
+
           <nav class="text-sm text-gray-600 flex items-center gap-3">
             <a href="/" class="hover:text-gray-900">Home</a>
             {% if user_id %}
               <a href="/dashboard" class="hover:text-gray-900">Dashboard</a>
+              <a href="/categories" class="hover:text-gray-900">Categories</a>
+              <a href="/budget" class="hover:text-gray-900">Budget</a>
             {% endif %}
           </nav>
         </div>
 
         <div class="text-sm">
           {% if user_id %}
-            <a href="/categories" class="hover:text-gray-900">Categories</a>
             <form method="post" action="/logout" class="inline">
               <button type="submit" class="rounded-md border px-3 py-1.5 hover:bg-gray-50">
                 Log out

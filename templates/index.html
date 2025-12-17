@@ -5,9 +5,11 @@
 
   {% if user_id %}
     <div class="mb-4 rounded-md border bg-white px-4 py-3">
-      <p class="text-sm text-gray-700">Logged in as user <span class="font-medium">#{{ user_id }}</span></p>
-      <p class="mt-2">
-        <a href="/dashboard" class="text-sm text-blue-700 hover:underline">Go to dashboard →</a>
+      <p class="text-sm text-gray-700">
+        Logged in as user <span class="font-medium">#{{ user_id }}</span>
+      </p>
+      <p class="mt-2 text-sm text-gray-600">
+        Use the navigation above to manage Categories and Budget items.
       </p>
     </div>
   {% else %}
