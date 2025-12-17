@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import SQLModel, Session, create_engine
 import sys
 from pathlib import Path
+from sqlalchemy.pool import StaticPool
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -13,7 +14,11 @@ from app.db import get_session
 @pytest.fixture()
 def client():
     # Test database (in-memory SQLite)
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    engine = create_engine(
+    "sqlite://",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
 
     # Create tables
     SQLModel.metadata.create_all(engine)
