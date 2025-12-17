@@ -38,7 +38,9 @@
           <li class="px-4 py-3 flex items-center justify-between">
             <div class="flex items-center gap-3">
               <span class="text-xl">{{ c.icon or "•" }}</span>
-              <span class="font-medium">{{ c.name }}</span>
+              <a class="font-medium text-blue-700 hover:underline" href="/categories/{{ c.id }}">
+                {{ c.name }}
+              </a>
             </div>
             <span class="text-xs text-gray-400">#{{ c.id }}</span>
           </li>

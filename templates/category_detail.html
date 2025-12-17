@@ -1,0 +1,62 @@
+{% extends "_base.html" %}
+
+{% block content %}
+  <div class="flex items-start justify-between mb-4">
+    <div>
+      <h1 class="text-2xl font-semibold">
+        {{ category.icon or "•" }} {{ category.name }}
+      </h1>
+      <p class="text-sm text-gray-600 mt-1">Manage subcategories for this category.</p>
+    </div>
+    <a href="/categories" class="text-sm text-blue-700 hover:underline">← Back to categories</a>
+  </div>
+
+  {% if error %}
+    <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+      {{ error }}
+    </div>
+  {% endif %}
+
+  <div class="grid gap-6 lg:grid-cols-2">
+    <section class="rounded-md border bg-white p-4">
+      <h2 class="font-medium mb-3">Add subcategory</h2>
+
+      <form method="post" action="/categories/{{ category.id }}/subcategories" class="space-y-3">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="sm:col-span-2">
+            <label class="block text-sm text-gray-700">Name</label>
+            <input name="name" required class="mt-1 w-full rounded-md border px-3 py-2" placeholder="e.g., Rent" />
+          </div>
+          <div>
+            <label class="block text-sm text-gray-700">Icon/Emoji</label>
+            <input name="icon" class="mt-1 w-full rounded-md border px-3 py-2" placeholder="🏠" />
+          </div>
+        </div>
+
+        <button class="rounded-md bg-gray-900 px-4 py-2 text-white hover:bg-black">
+          Add subcategory
+        </button>
+      </form>
+    </section>
+
+    <section class="rounded-md border bg-white">
+      <div class="border-b px-4 py-2 text-sm text-gray-600">Subcategories</div>
+
+      {% if subcategories|length == 0 %}
+        <div class="px-4 py-4 text-sm text-gray-600">No subcategories yet.</div>
+      {% else %}
+        <ul class="divide-y">
+          {% for s in subcategories %}
+            <li class="px-4 py-3 flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <span class="text-xl">{{ s.icon or "•" }}</span>
+                <span class="font-medium">{{ s.name }}</span>
+              </div>
+              <span class="text-xs text-gray-400">#{{ s.id }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </section>
+  </div>
+{% endblock %}
