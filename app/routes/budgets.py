@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 from ..db import get_session
 from ..deps import current_user_id
 from ..models import Budget, Category, Subcategory
-from ..domain import BudgetType
+from ..domain import BudgetType, RepeatUnit
 from ..validators import validate_budget, ValidationError
 from ..money import euros_to_cents, cents_to_euros_str, MoneyParseError
 
@@ -81,7 +81,7 @@ def list_budget(
 @router.get("/budget/subcategories", response_class=HTMLResponse)
 def budget_subcategories(
     request: Request,
-    category_id: int | None = None,  # IMPORTANT: allow missing on initial load
+    category_id: int | None = None,  # allow missing (page load before selection)
     db: Session = Depends(get_session),
     uid: int | None = Depends(current_user_id),
 ):
@@ -91,7 +91,7 @@ def budget_subcategories(
     if not category_id:
         return HTMLResponse('<option value="">(none)</option>', status_code=200)
 
-    # Ensure category belongs to user
+    # Ensure category belongs to the user
     cat = db.exec(
         select(Category).where(Category.id == category_id, Category.user_id == uid)
     ).first()
@@ -113,21 +113,37 @@ def budget_subcategories(
 
 
 @router.post("/budget")
-def create_budget_one_time(
+def create_budget(
     request: Request,
     budget_type: BudgetType = Form(...),
-    category_id: str = Form(""),        # changed: string so we can validate nicely
+
+    category_id: str = Form(""),          # validate ourselves (no JSON leak)
     subcategory_id: str = Form(""),
+
     amount_eur: str = Form(...),
     currency: str = Form("EUR"),
-    one_time_date: date = Form(...),
+
+    # One-time (optional; required only if not recurring)
+    one_time_date: date | None = Form(None),
+
+    # Recurring
+    is_recurring: str = Form(""),         # checkbox => "on"
+    repeat_unit: str = Form(""),
+    repeat_interval: str = Form(""),
+    day_of_month: str = Form(""),
+    weekday: str = Form(""),
+    start_date: date | None = Form(None),
+    end_date: date | None = Form(None),
+
     note: str = Form(""),
+
     db: Session = Depends(get_session),
     uid: int | None = Depends(current_user_id),
 ):
     if not uid:
         return RedirectResponse(url="/login", status_code=303)
 
+    # ---- category validation (prevents FastAPI JSON errors in browser) ----
     if not category_id.strip():
         return _render_budget_page(request, uid, db, error="Category is required.", status_code=400)
 
@@ -136,22 +152,20 @@ def create_budget_one_time(
     except ValueError:
         return _render_budget_page(request, uid, db, error="Invalid category.", status_code=400)
 
-    # Validate category belongs to user
     cat = db.exec(
         select(Category).where(Category.id == category_id_int, Category.user_id == uid)
     ).first()
     if not cat:
         return _render_budget_page(request, uid, db, error="Invalid category.", status_code=400)
 
-    # Parse optional subcategory id
-    sub_id = None
+    # ---- subcategory validation (optional) ----
+    sub_id: int | None = None
     if subcategory_id.strip():
         try:
             sub_id = int(subcategory_id)
         except ValueError:
             return _render_budget_page(request, uid, db, error="Invalid subcategory.", status_code=400)
 
-        # Validate subcategory belongs to selected category + user
         sub = db.exec(
             select(Subcategory).where(
                 Subcategory.id == sub_id,
@@ -164,21 +178,71 @@ def create_budget_one_time(
                 request, uid, db, error="Invalid subcategory for selected category.", status_code=400
             )
 
-    # Convert EUR string -> cents
+    # ---- money parsing ----
     try:
         amount_cents = euros_to_cents(amount_eur)
     except MoneyParseError as e:
         return _render_budget_page(request, uid, db, error=str(e), status_code=400)
+
+    # ---- recurrence parsing ----
+    recurring = is_recurring.strip().lower() in ("on", "true", "1", "yes")
+
+    ru: RepeatUnit | None = None
+    if recurring and repeat_unit.strip():
+        try:
+            ru = RepeatUnit(repeat_unit.strip().lower())
+        except ValueError:
+            return _render_budget_page(request, uid, db, error="Invalid repeat_unit.", status_code=400)
+
+    ri: int | None = None
+    if recurring and repeat_interval.strip():
+        try:
+            ri = int(repeat_interval)
+        except ValueError:
+            return _render_budget_page(request, uid, db, error="Interval must be a number.", status_code=400)
+
+    dom: int | None = None
+    if recurring and day_of_month.strip():
+        try:
+            dom = int(day_of_month)
+        except ValueError:
+            return _render_budget_page(request, uid, db, error="Day of month must be a number.", status_code=400)
+
+    wd: int | None = None
+    if recurring and weekday.strip():
+        try:
+            wd = int(weekday)
+        except ValueError:
+            return _render_budget_page(request, uid, db, error="Weekday must be a number.", status_code=400)
+
+    # If NOT recurring, require date (nice error, not JSON)
+    if not recurring and one_time_date is None:
+        return _render_budget_page(
+            request, uid, db, error="Date is required for one-time budget.", status_code=400
+        )
 
     b = Budget(
         user_id=uid,
         type=budget_type,
         category_id=category_id_int,
         subcategory_id=sub_id,
+
         amount_cents=amount_cents,
         currency=currency.strip().upper(),
-        is_recurring=False,
-        one_time_date=one_time_date,
+
+        is_recurring=recurring,
+
+        # one-time
+        one_time_date=None if recurring else one_time_date,
+
+        # recurring
+        repeat_unit=ru if recurring else None,
+        repeat_interval=ri if recurring else None,
+        day_of_month=dom if recurring else None,
+        weekday=wd if recurring else None,
+        start_date=start_date if recurring else None,
+        end_date=end_date if recurring else None,
+
         note=(note.strip() or None),
     )
 

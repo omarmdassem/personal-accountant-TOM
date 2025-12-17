@@ -13,7 +13,7 @@
 
   <div class="grid gap-6 lg:grid-cols-2">
     <section class="rounded-md border bg-white p-4">
-      <h2 class="font-medium mb-3">Add one-time budget item</h2>
+      <h2 class="font-medium mb-3">Add budget item</h2>
 
       {% if categories|length == 0 %}
         <p class="text-sm text-gray-600">
@@ -89,9 +89,68 @@
             </div>
           </div>
 
+          <!-- Recurring settings -->
+          <div class="rounded-md border bg-gray-50 p-3">
+            <label class="inline-flex items-center gap-2 text-sm">
+              <input type="checkbox" name="is_recurring" class="rounded border" />
+              <span class="font-medium">Recurring</span>
+            </label>
+
+            <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-sm text-gray-700">Repeat unit</label>
+                <select name="repeat_unit" class="mt-1 w-full rounded-md border px-3 py-2">
+                  <option value="">(select)</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-sm text-gray-700">Interval</label>
+                <input name="repeat_interval" type="number" min="1" class="mt-1 w-full rounded-md border px-3 py-2" placeholder="e.g., 1" />
+                <p class="mt-1 text-xs text-gray-500">Every N units (e.g., every 2 weeks).</p>
+              </div>
+
+              <div>
+                <label class="block text-sm text-gray-700">Weekday (weekly)</label>
+                <select name="weekday" class="mt-1 w-full rounded-md border px-3 py-2">
+                  <option value="">(none)</option>
+                  <option value="0">Mon</option>
+                  <option value="1">Tue</option>
+                  <option value="2">Wed</option>
+                  <option value="3">Thu</option>
+                  <option value="4">Fri</option>
+                  <option value="5">Sat</option>
+                  <option value="6">Sun</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-sm text-gray-700">Day of month (monthly/yearly)</label>
+                <input name="day_of_month" type="number" min="1" max="31" class="mt-1 w-full rounded-md border px-3 py-2" placeholder="e.g., 1" />
+              </div>
+
+              <div>
+                <label class="block text-sm text-gray-700">Start date (optional)</label>
+                <input name="start_date" type="date" class="mt-1 w-full rounded-md border px-3 py-2" />
+              </div>
+
+              <div>
+                <label class="block text-sm text-gray-700">End date (optional)</label>
+                <input name="end_date" type="date" class="mt-1 w-full rounded-md border px-3 py-2" />
+              </div>
+            </div>
+
+            <p class="mt-2 text-xs text-gray-500">
+              If Recurring is unchecked, we treat this as one-time and require the Date field below.
+            </p>
+          </div>
+
           <div>
-            <label class="block text-sm text-gray-700">Date</label>
-            <input name="one_time_date" type="date" required class="mt-1 w-full rounded-md border px-3 py-2" />
+            <label class="block text-sm text-gray-700">Date (one-time only)</label>
+            <input name="one_time_date" type="date" class="mt-1 w-full rounded-md border px-3 py-2" />
           </div>
 
           <div>
@@ -122,21 +181,33 @@
                 <div class="font-medium">
                   {{ b.type.value|capitalize }}
                   · {{ cents_to_euros_str(b.amount_cents) }} {{ b.currency }}
+                  {% if b.is_recurring %}
+                    <span class="ml-2 text-xs rounded bg-gray-100 px-2 py-0.5 text-gray-700">recurring</span>
+                  {% else %}
+                    <span class="ml-2 text-xs rounded bg-gray-100 px-2 py-0.5 text-gray-700">one-time</span>
+                  {% endif %}
                 </div>
 
                 <div class="text-sm text-gray-600">
-                  One-time on {{ b.one_time_date }}
+                  {% if b.is_recurring %}
+                    {{ b.repeat_unit.value if b.repeat_unit else "" }}
+                    {% if b.repeat_interval %} · every {{ b.repeat_interval }}{% endif %}
+                    {% if b.weekday is not none %} · weekday {{ b.weekday }}{% endif %}
+                    {% if b.day_of_month is not none %} · day {{ b.day_of_month }}{% endif %}
+                    {% if b.start_date %} · from {{ b.start_date }}{% endif %}
+                    {% if b.end_date %} · to {{ b.end_date }}{% endif %}
+                  {% else %}
+                    One-time on {{ b.one_time_date }}
+                  {% endif %}
                   ·
                   {% if cat %}
                     {{ cat.icon or "" }} {{ cat.name }}
                   {% else %}
                     Category #{{ b.category_id }}
                   {% endif %}
-
                   {% if sub %}
                     · {{ sub.icon or "" }} {{ sub.name }}
                   {% endif %}
-
                   {% if b.note %} · {{ b.note }}{% endif %}
                 </div>
               </div>
