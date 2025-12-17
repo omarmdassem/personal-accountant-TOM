@@ -34,18 +34,20 @@
             <div>
               <label class="block text-sm text-gray-700">Category</label>
               <select
-                name="subcategory_id"
-                id="subcategory-select"
+                name="category_id"
                 class="mt-1 w-full rounded-md border px-3 py-2"
+                required
                 hx-get="/budget/subcategories"
-                hx-trigger="load"
-                hx-include="closest form"
+                hx-trigger="change"
                 hx-target="#subcategory-select"
                 hx-swap="innerHTML"
+                hx-include="closest form"
               >
-                <option value="">(none)</option>
+                <option value="" selected disabled>Select a category…</option>
+                {% for c in categories %}
+                  <option value="{{ c.id }}">{{ c.icon or "" }} {{ c.name }}</option>
+                {% endfor %}
               </select>
-
               <p class="mt-1 text-xs text-gray-500">Changing category loads subcategories.</p>
             </div>
           </div>
@@ -56,6 +58,11 @@
               name="subcategory_id"
               id="subcategory-select"
               class="mt-1 w-full rounded-md border px-3 py-2"
+              hx-get="/budget/subcategories"
+              hx-trigger="load"
+              hx-target="#subcategory-select"
+              hx-swap="innerHTML"
+              hx-include="closest form"
             >
               <option value="">(none)</option>
             </select>

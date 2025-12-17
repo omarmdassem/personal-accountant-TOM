@@ -81,14 +81,17 @@ def list_budget(
 @router.get("/budget/subcategories", response_class=HTMLResponse)
 def budget_subcategories(
     request: Request,
-    category_id: int,
+    category_id: int | None = None,  # IMPORTANT: allow missing on initial load
     db: Session = Depends(get_session),
     uid: int | None = Depends(current_user_id),
 ):
     if not uid:
         return HTMLResponse("", status_code=401)
 
-    # Ensure the category belongs to the user
+    if not category_id:
+        return HTMLResponse('<option value="">(none)</option>', status_code=200)
+
+    # Ensure category belongs to user
     cat = db.exec(
         select(Category).where(Category.id == category_id, Category.user_id == uid)
     ).first()
@@ -113,7 +116,7 @@ def budget_subcategories(
 def create_budget_one_time(
     request: Request,
     budget_type: BudgetType = Form(...),
-    category_id: int = Form(...),
+    category_id: str = Form(""),        # changed: string so we can validate nicely
     subcategory_id: str = Form(""),
     amount_eur: str = Form(...),
     currency: str = Form("EUR"),
@@ -125,23 +128,35 @@ def create_budget_one_time(
     if not uid:
         return RedirectResponse(url="/login", status_code=303)
 
+    if not category_id.strip():
+        return _render_budget_page(request, uid, db, error="Category is required.", status_code=400)
+
+    try:
+        category_id_int = int(category_id)
+    except ValueError:
+        return _render_budget_page(request, uid, db, error="Invalid category.", status_code=400)
+
     # Validate category belongs to user
     cat = db.exec(
-        select(Category).where(Category.id == category_id, Category.user_id == uid)
+        select(Category).where(Category.id == category_id_int, Category.user_id == uid)
     ).first()
     if not cat:
         return _render_budget_page(request, uid, db, error="Invalid category.", status_code=400)
 
     # Parse optional subcategory id
-    sub_id = int(subcategory_id) if subcategory_id.strip() else None
+    sub_id = None
+    if subcategory_id.strip():
+        try:
+            sub_id = int(subcategory_id)
+        except ValueError:
+            return _render_budget_page(request, uid, db, error="Invalid subcategory.", status_code=400)
 
-    # Validate subcategory belongs to selected category + user
-    if sub_id is not None:
+        # Validate subcategory belongs to selected category + user
         sub = db.exec(
             select(Subcategory).where(
                 Subcategory.id == sub_id,
                 Subcategory.user_id == uid,
-                Subcategory.category_id == category_id,
+                Subcategory.category_id == category_id_int,
             )
         ).first()
         if not sub:
@@ -158,7 +173,7 @@ def create_budget_one_time(
     b = Budget(
         user_id=uid,
         type=budget_type,
-        category_id=category_id,
+        category_id=category_id_int,
         subcategory_id=sub_id,
         amount_cents=amount_cents,
         currency=currency.strip().upper(),
