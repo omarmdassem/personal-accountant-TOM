@@ -11,18 +11,23 @@ sys.path.insert(0, str(ROOT))
 from app.main import app
 from app.db import get_session
 
+
 @pytest.fixture()
-def client():
-    # Test database (in-memory SQLite)
+def engine():
+    # Test database (in-memory SQLite, shared connection)
     engine = create_engine(
-    "sqlite://",
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
 
-    # Create tables
     SQLModel.metadata.create_all(engine)
+    yield engine
+    SQLModel.metadata.drop_all(engine)
 
+
+@pytest.fixture()
+def client(engine):
     # Override dependency
     def _get_session_override():
         with Session(engine) as session:

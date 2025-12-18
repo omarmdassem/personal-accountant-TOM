@@ -1,0 +1,111 @@
+{% extends "_base.html" %}
+
+{% block content %}
+  <div class="flex items-center justify-between mb-4">
+    <div>
+      <h1 class="text-2xl font-semibold">Review Import</h1>
+      <p class="text-sm text-gray-600 mt-1">Confirm how to handle duplicates before importing.</p>
+    </div>
+    <a href="/budget/import" class="text-sm text-blue-700 hover:underline">← Back to upload</a>
+  </div>
+
+  <div class="grid gap-4 sm:grid-cols-3 mb-4">
+    <div class="rounded-md border bg-white p-3">
+      <div class="text-xs text-gray-500">Valid rows</div>
+      <div class="text-xl font-semibold">{{ valid_count }}</div>
+    </div>
+    <div class="rounded-md border bg-white p-3">
+      <div class="text-xs text-gray-500">Duplicates vs existing</div>
+      <div class="text-xl font-semibold">{{ dup_count }}</div>
+    </div>
+    <div class="rounded-md border bg-white p-3">
+      <div class="text-xs text-gray-500">Invalid rows</div>
+      <div class="text-xl font-semibold">{{ invalid_count }}</div>
+    </div>
+  </div>
+
+  <div class="rounded-md border bg-white p-4 mb-4">
+    <div class="flex items-center gap-2">
+      <form method="post" action="/budget/import/apply">
+        <input type="hidden" name="action" value="keep" />
+        <button class="rounded-md bg-gray-900 px-4 py-2 text-white hover:bg-black">
+          Import (keep both)
+        </button>
+      </form>
+
+      <form method="post" action="/budget/import/apply">
+        <input type="hidden" name="action" value="replace" />
+        <button class="rounded-md border px-4 py-2 hover:bg-gray-50">
+          Import (replace duplicates)
+        </button>
+      </form>
+
+      <a href="/budget" class="ml-auto text-sm text-blue-700 hover:underline">Cancel</a>
+    </div>
+
+    <p class="mt-2 text-xs text-gray-500">
+      “Replace duplicates” deletes existing matching rows first, then inserts the CSV rows.
+      “Keep both” inserts everything and you may end up with duplicates.
+    </p>
+  </div>
+
+  {% if invalid_rows|length > 0 %}
+    <div class="rounded-md border border-red-200 bg-red-50 p-4 mb-4">
+      <div class="font-medium text-red-800 mb-2">Invalid rows (not imported)</div>
+      <ul class="list-disc pl-5 text-sm text-red-700 space-y-1">
+        {% for r in invalid_rows[:15] %}
+          <li>Row {{ r.rownum }}: {{ r.error }}</li>
+        {% endfor %}
+      </ul>
+      {% if invalid_rows|length > 15 %}
+        <div class="mt-2 text-xs text-red-700">…and {{ invalid_rows|length - 15 }} more.</div>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <div class="rounded-md border bg-white">
+    <div class="border-b px-4 py-2 text-sm text-gray-600">Preview (first 25 valid rows)</div>
+
+    {% if preview_rows|length == 0 %}
+      <div class="px-4 py-4 text-sm text-gray-600">No valid rows found in the CSV.</div>
+    {% else %}
+      <table class="w-full text-sm">
+        <thead class="text-left text-gray-500">
+          <tr class="border-b">
+            <th class="px-4 py-2">Status</th>
+            <th class="px-4 py-2">Type</th>
+            <th class="px-4 py-2">Category</th>
+            <th class="px-4 py-2">Subcategory</th>
+            <th class="px-4 py-2">Amount</th>
+            <th class="px-4 py-2">Schedule</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y">
+          {% for item in preview_rows %}
+            {% set r = item.row %}
+            <tr class="{% if item.is_duplicate %}bg-yellow-50{% endif %}">
+              <td class="px-4 py-2">
+                {% if item.is_duplicate %}
+                  <span class="text-xs rounded bg-yellow-100 px-2 py-0.5">duplicate</span>
+                {% else %}
+                  <span class="text-xs rounded bg-gray-100 px-2 py-0.5">new</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-2">{{ r.type }}</td>
+              <td class="px-4 py-2">{{ r.category }}</td>
+              <td class="px-4 py-2">{{ r.subcategory or "" }}</td>
+              <td class="px-4 py-2">{{ cents_to_euros_str(r.amount_cents) }} {{ r.currency }}</td>
+              <td class="px-4 py-2">
+                {% if r.is_recurring %}
+                  recurring · {{ r.repeat_unit }} · every {{ r.repeat_interval }}
+                {% else %}
+                  one-time · {{ r.one_time_date }}
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+{% endblock %}
