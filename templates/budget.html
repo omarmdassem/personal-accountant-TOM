@@ -3,6 +3,9 @@
 {% block title %}Budget{% endblock %}
 
 {% block content %}
+
+  {% include "_budget_filters.html" %}
+
   <div class="space-y-6">
 
     <div class="flex items-center justify-between">
@@ -142,7 +145,7 @@
                   <span class="font-medium">
                     {% if b.category_name is defined %}{{ b.category_name }}
                     {% elif b.category is defined and b.category and b.category.name is defined %}{{ b.category.name }}
-                    {% else %}Category {{ b.category_id }}{% endif %}
+                    {% else %}{{ ((categories_by_id.get(b.category_id) or categories_by_id.get(b.category_id|int) or categories_by_id.get(b.category_id|string)).name if (categories_by_id.get(b.category_id) or categories_by_id.get(b.category_id|int) or categories_by_id.get(b.category_id|string)) else ('Category ' ~ b.category_id)) }}{% endif %}
                   </span>
 
                   {% if b.subcategory_name is defined and b.subcategory_name %}

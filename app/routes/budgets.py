@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import date
+from datetime import date, datetime, time, timedelta
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
+from sqlalchemy import or_
 
 from ..db import get_session
 from ..deps import current_user_id
@@ -55,7 +56,33 @@ SCHEDULE_MAP = {
 }
 
 
-def _load_budget_page_data(db: Session, uid: int):
+def _parse_int(s: str | None) -> int | None:
+    s = (s or "").strip()
+    if not s:
+        return None
+    try:
+        return int(s)
+    except ValueError:
+        return None
+
+
+def _parse_date_query(s: str | None) -> date | None:
+    s = (s or "").strip()
+    if not s:
+        return None
+    try:
+        return date.fromisoformat(s)
+    except ValueError:
+        return None
+
+
+def _load_budget_page_data(
+    db: Session,
+    uid: int,
+    filters: dict | None = None,
+):
+    filters = filters or {}
+
     categories = db.exec(
         select(Category).where(Category.user_id == uid).order_by(Category.name)
     ).all()
@@ -64,14 +91,48 @@ def _load_budget_page_data(db: Session, uid: int):
         select(Subcategory).where(Subcategory.user_id == uid).order_by(Subcategory.name)
     ).all()
 
-    budgets = db.exec(
-        select(Budget).where(Budget.user_id == uid).order_by(Budget.created_at.desc())
-    ).all()
+    budgets_q = select(Budget).where(Budget.user_id == uid)
+
+    # --- Filters (all optional) ---
+    f_type = (filters.get("type") or "").strip().lower()
+    if f_type in ("income", "expense"):
+        budgets_q = budgets_q.where(Budget.type == BudgetType(f_type))
+
+    f_schedule = (filters.get("schedule") or "").strip().lower()
+    if f_schedule in ("one-time", "one_time", "onetime", "one time"):
+        budgets_q = budgets_q.where(Budget.is_recurring == False)  # noqa: E712
+    elif f_schedule in ("recurring", "repeat"):
+        budgets_q = budgets_q.where(Budget.is_recurring == True)  # noqa: E712
+
+    f_category_id = _parse_int(filters.get("category_id"))
+    if f_category_id:
+        budgets_q = budgets_q.where(Budget.category_id == f_category_id)
+
+    f_subcategory_id = _parse_int(filters.get("subcategory_id"))
+    if f_subcategory_id:
+        budgets_q = budgets_q.where(Budget.subcategory_id == f_subcategory_id)
+
+    q = (filters.get("q") or "").strip()
+    if q:
+        # note is nullable -> this still works fine (NULL won't match)
+        budgets_q = budgets_q.where(Budget.note.contains(q))
+
+    created_from = _parse_date_query(filters.get("created_from"))
+    created_to = _parse_date_query(filters.get("created_to"))
+    if created_from:
+        dt_from = datetime.combine(created_from, time.min)
+        budgets_q = budgets_q.where(Budget.created_at >= dt_from)
+    if created_to:
+        # inclusive end-date: < next day midnight
+        dt_to = datetime.combine(created_to, time.min) + timedelta(days=1)
+        budgets_q = budgets_q.where(Budget.created_at < dt_to)
+
+    budgets = db.exec(budgets_q.order_by(Budget.created_at.desc())).all()
 
     categories_by_id = {c.id: c for c in categories}
     subcategories_by_id = {s.id: s for s in subcategories}
 
-    return categories, budgets, categories_by_id, subcategories_by_id
+    return categories, subcategories, budgets, categories_by_id, subcategories_by_id
 
 
 def _render_budget_page(
@@ -80,8 +141,11 @@ def _render_budget_page(
     db: Session,
     error: str | None = None,
     status_code: int = 200,
+    filters: dict | None = None,
 ):
-    categories, budgets, categories_by_id, subcategories_by_id = _load_budget_page_data(db, uid)
+    categories, subcategories, budgets, categories_by_id, subcategories_by_id = _load_budget_page_data(
+        db, uid, filters=filters
+    )
 
     return templates.TemplateResponse(
         "budget.html",
@@ -90,9 +154,11 @@ def _render_budget_page(
             "title": "Budget",
             "user_id": uid,
             "categories": categories,
+            "subcategories": subcategories,
             "budgets": budgets,
             "categories_by_id": categories_by_id,
             "subcategories_by_id": subcategories_by_id,
+            "filters": filters or {},
             "error": error,
             "cents_to_euros_str": cents_to_euros_str,
         },
@@ -148,36 +214,6 @@ def _parse_date(s: str) -> date | None:
     return date.fromisoformat(s)
 
 
-def _coerce_note_from_misplaced_columns(row: dict) -> str | None:
-    """
-    Be forgiving with CSV rows that have a missing comma near the end,
-    which can shift NOTE into END_DATE.
-
-    Example buggy row (missing one comma):
-      ... ,start_date,end_date,note
-      ... ,,,,,,Car insurance
-    -> "Car insurance" lands in end_date, note becomes empty.
-
-    We treat non-date text in end_date as note (and clear end_date).
-    """
-    note = (row.get("note") or "").strip()
-    if note:
-        return note
-
-    candidate = (row.get("end_date") or "").strip()
-    if not candidate:
-        return None
-
-    # If it's actually a date, keep it as end_date
-    try:
-        date.fromisoformat(candidate)
-        return None
-    except Exception:
-        # Not a date -> it's probably the note shifted into end_date
-        row["end_date"] = ""
-        return candidate
-
-
 def _parse_csv(file_bytes: bytes) -> tuple[list[dict], list[dict]]:
     """
     Returns: (valid_rows, invalid_rows)
@@ -207,19 +243,19 @@ def _parse_csv(file_bytes: bytes) -> tuple[list[dict], list[dict]]:
     if missing:
         return [], [{"rownum": 0, "error": f"Missing required columns: {', '.join(sorted(missing))}", "raw": {}}]
 
-    def _clean_value(v) -> str:
-        if v is None:
-            return ""
-        if isinstance(v, list):
-            return ",".join(str(x) for x in v).strip()
-        return str(v).strip()
-
     valid: list[dict] = []
     invalid: list[dict] = []
 
     for i, raw in enumerate(reader, start=2):  # 1=header, data starts at 2
         # make a lower-keyed dict for robustness
-        row = {(k or "").strip().lower(): _clean_value(v) for k, v in raw.items()}
+        row = {}
+        for k, v in raw.items():
+            key = (k or "").strip().lower()
+            if isinstance(v, list):
+                val = " ".join(str(x) for x in v if x is not None).strip()
+            else:
+                val = (v or "").strip()
+            row[key] = val
 
         try:
             btype = row.get("type", "").lower()
@@ -244,10 +280,21 @@ def _parse_csv(file_bytes: bytes) -> tuple[list[dict], list[dict]]:
             if schedule is None:
                 raise ValueError("schedule must be 'one-time' or 'recurring' (or empty).")
 
-            # NOTE: be forgiving if note shifted into end_date because of missing comma
-            note = _coerce_note_from_misplaced_columns(row)
+            note = (row.get("note") or "").strip()
+            # If the CSV row is one comma short, "note" often ends up in start_date/end_date.
             if not note:
-                note = (row.get("note") or "").strip() or None
+                for k in ("end_date", "start_date"):
+                    v = (row.get(k) or "").strip()
+                    if not v:
+                        continue
+                    # If it's not an ISO date, treat it as note.
+                    try:
+                        date.fromisoformat(v)
+                    except Exception:
+                        note = v
+                        row[k] = ""
+                        break
+            note = note or None
 
             if schedule == "one-time":
                 one_time_date = _parse_date(row.get("date", ""))
@@ -375,12 +422,29 @@ def budgets_redirect():
 @router.get("/budget", response_class=HTMLResponse)
 def list_budget(
     request: Request,
+    type: str | None = None,  # query param
+    schedule: str | None = None,
+    category_id: str | None = None,
+    subcategory_id: str | None = None,
+    q: str | None = None,
+    created_from: str | None = None,
+    created_to: str | None = None,
     db: Session = Depends(get_session),
     uid: int | None = Depends(current_user_id),
 ):
     if not uid:
         return RedirectResponse(url="/login", status_code=303)
-    return _render_budget_page(request, uid, db)
+
+    filters = {
+        "type": (type or "").strip(),
+        "schedule": (schedule or "").strip(),
+        "category_id": (category_id or "").strip(),
+        "subcategory_id": (subcategory_id or "").strip(),
+        "q": (q or "").strip(),
+        "created_from": (created_from or "").strip(),
+        "created_to": (created_to or "").strip(),
+    }
+    return _render_budget_page(request, uid, db, filters=filters)
 
 
 @router.get("/budget/subcategories", response_class=HTMLResponse)
@@ -430,7 +494,7 @@ def download_budget_template(
     example_rows = [
         # recurring monthly
         ["expense", "Housing", "Rent", "900.00", "EUR", "recurring", "", "1", "month", "", "1", "2025-01-01", "", "Monthly rent"],
-        # one-time (NOTE: keep correct comma count so note stays in the note column)
+        # one-time
         ["expense", "Insurance", "", "120.50", "EUR", "one-time", "2025-02-01", "", "", "", "", "", "", "Car insurance"],
     ]
 
@@ -579,7 +643,6 @@ def import_budget_apply(
     # If replace: delete existing duplicates (delete ALL matches, not just one)
     if action == "replace":
         ids_to_delete: set[int] = set()
-
         for r in valid_rows:
             sig = _sig_from_row(r)
             for bid in existing_sigs.get(sig, []):
@@ -625,7 +688,6 @@ def import_budget_apply(
         try:
             validate_budget(b)
         except ValidationError:
-            # Should not happen if CSV parsing was correct, but we skip rather than crash import.
             continue
 
         db.add(b)
@@ -732,6 +794,7 @@ def create_budget(
     wd: int | None = None
     if recurring and weekday.strip():
         try:
+
             wd = int(weekday)
         except ValueError:
             return _render_budget_page(request, uid, db, error="Weekday must be a number.", status_code=400)
