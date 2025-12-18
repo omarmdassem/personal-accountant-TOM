@@ -1,36 +1,31 @@
-{% extends "base.html" %}
-
-{% block title %}Budget{% endblock %}
+{% extends "_base.html" %}
 
 {% block content %}
-
-  {% include "_budget_filters.html" %}
-
-  <div class="space-y-6">
-
-    <div class="flex items-center justify-between">
-      <h1 class="text-2xl font-semibold">Budget</h1>
-
-      <div class="flex items-center gap-3">
-        <a href="/budget/template.csv" class="text-sm underline">Download CSV template</a>
-        <a href="/budget/import" class="rounded-md bg-gray-900 px-3 py-2 text-sm text-white hover:bg-black">
-          Import CSV
-        </a>
+  <div class="mx-auto max-w-6xl px-4 py-6">
+    <div class="mb-6 flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-semibold">Budget</h1>
+        <p class="text-sm text-gray-600">Create and manage budgets.</p>
+      </div>
+      <div class="flex gap-2">
+        <a href="/budget/template.csv" class="rounded-md border px-3 py-2 text-sm">Template CSV</a>
+        <a href="/budget/import" class="rounded-md border px-3 py-2 text-sm">Import CSV</a>
       </div>
     </div>
 
     {% if error %}
-      <div class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+      <div class="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
         {{ error }}
       </div>
     {% endif %}
 
-    <section class="rounded-lg border bg-white p-4">
+    <!-- Create Budget (same style as transactions: form on top, list below) -->
+    <div class="mb-6 rounded-lg border bg-white p-4 shadow-sm">
       <h2 class="mb-3 font-semibold">Add budget</h2>
 
-      <form method="post" action="/budget" class="grid grid-cols-1 gap-3 md:grid-cols-6">
+      <form method="post" action="/budget" class="grid gap-3 md:grid-cols-6">
         <div class="md:col-span-1">
-          <label class="block text-sm text-gray-700">Type</label>
+          <label class="block text-xs font-medium text-gray-700">Type</label>
           <select name="budget_type" class="mt-1 w-full rounded-md border px-3 py-2 text-sm">
             <option value="expense">expense</option>
             <option value="income">income</option>
@@ -38,7 +33,7 @@
         </div>
 
         <div class="md:col-span-2">
-          <label class="block text-sm text-gray-700">Category</label>
+          <label class="block text-xs font-medium text-gray-700">Category</label>
           <select
             name="category_id"
             id="category_id"
@@ -46,159 +41,172 @@
             hx-get="/budget/subcategories"
             hx-trigger="change"
             hx-target="#subcategory_id"
-            hx-include="#budget-form"
+            hx-include="#category_id"
           >
-            <option value="">-- select --</option>
-            {% for c in categories or [] %}
-              <option value="{{ c.id }}">{{ c.name }}</option>
+            <option value="">Select…</option>
+            {% for c in categories %}
+              <option value="{{ c.id }}">{{ (c.icon ~ ' ' if c.icon else '') ~ c.name }}</option>
             {% endfor %}
           </select>
         </div>
 
         <div class="md:col-span-2">
-          <label class="block text-sm text-gray-700">Subcategory</label>
+          <label class="block text-xs font-medium text-gray-700">Subcategory (optional)</label>
           <select name="subcategory_id" id="subcategory_id" class="mt-1 w-full rounded-md border px-3 py-2 text-sm">
-            <option value="">-- none --</option>
-            {% for s in subcategories or [] %}
-              <option value="{{ s.id }}">{{ s.name }}</option>
-            {% endfor %}
+            <option value="">(none)</option>
           </select>
         </div>
 
         <div class="md:col-span-1">
-          <label class="block text-sm text-gray-700">Amount (EUR)</label>
+          <label class="block text-xs font-medium text-gray-700">Amount (EUR)</label>
           <input name="amount_eur" class="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="12.99" />
         </div>
 
-        <input type="hidden" name="currency" value="EUR" />
+        <div class="md:col-span-1">
+          <label class="block text-xs font-medium text-gray-700">Currency</label>
+          <select name="currency" class="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+            <option value="EUR" selected>EUR</option>
+          </select>
+        </div>
 
         <div class="md:col-span-2">
-          <label class="block text-sm text-gray-700">One-time date</label>
+          <label class="block text-xs font-medium text-gray-700">One-time date</label>
           <input type="date" name="one_time_date" class="mt-1 w-full rounded-md border px-3 py-2 text-sm" />
+          <p class="mt-1 text-xs text-gray-500">Leave empty if recurring.</p>
         </div>
 
-        <div class="md:col-span-4">
-          <label class="block text-sm text-gray-700">Note</label>
-          <input name="note" class="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="e.g., Monthly rent" />
-        </div>
-
-        <!-- Recurring controls (kept simple; your server validates details) -->
-        <div class="md:col-span-6 mt-2 flex flex-wrap items-center gap-4">
+        <div class="md:col-span-1 flex items-end">
           <label class="inline-flex items-center gap-2 text-sm">
-            <input type="checkbox" name="is_recurring" class="h-4 w-4" />
+            <input type="checkbox" name="is_recurring" class="rounded border" />
             Recurring
           </label>
+        </div>
 
-          <div class="flex items-center gap-2">
-            <span class="text-sm text-gray-700">Unit</span>
-            <select name="repeat_unit" class="rounded-md border px-2 py-1 text-sm">
-              <option value="">--</option>
-              <option value="weekly">weekly</option>
-              <option value="monthly">monthly</option>
-              <option value="yearly">yearly</option>
-            </select>
-          </div>
+        <div class="md:col-span-1">
+          <label class="block text-xs font-medium text-gray-700">Repeat unit</label>
+          <select name="repeat_unit" class="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+            <option value="">(none)</option>
+            <option value="weekly">weekly</option>
+            <option value="monthly">monthly</option>
+            <option value="yearly">yearly</option>
+          </select>
+        </div>
 
-          <div class="flex items-center gap-2">
-            <span class="text-sm text-gray-700">Every</span>
-            <input name="repeat_interval" class="w-20 rounded-md border px-2 py-1 text-sm" placeholder="1" />
-          </div>
+        <div class="md:col-span-1">
+          <label class="block text-xs font-medium text-gray-700">Repeat interval</label>
+          <input name="repeat_interval" class="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="1" />
+        </div>
 
-          <div class="flex items-center gap-2">
-            <span class="text-sm text-gray-700">Day (month)</span>
-            <input name="day_of_month" class="w-20 rounded-md border px-2 py-1 text-sm" placeholder="1" />
-          </div>
+        <div class="md:col-span-1">
+          <label class="block text-xs font-medium text-gray-700">Day of month</label>
+          <input name="day_of_month" class="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="1" />
+        </div>
 
-          <div class="flex items-center gap-2">
-            <span class="text-sm text-gray-700">Weekday</span>
-            <input name="weekday" class="w-20 rounded-md border px-2 py-1 text-sm" placeholder="0..6" />
-          </div>
+        <div class="md:col-span-1">
+          <label class="block text-xs font-medium text-gray-700">Weekday (0..6)</label>
+          <input name="weekday" class="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="0" />
+        </div>
 
-          <div class="flex items-center gap-2">
-            <span class="text-sm text-gray-700">Start</span>
-            <input type="date" name="start_date" class="rounded-md border px-2 py-1 text-sm" />
-          </div>
+        <div class="md:col-span-1">
+          <label class="block text-xs font-medium text-gray-700">Start date</label>
+          <input type="date" name="start_date" class="mt-1 w-full rounded-md border px-3 py-2 text-sm" />
+        </div>
 
-          <div class="flex items-center gap-2">
-            <span class="text-sm text-gray-700">End</span>
-            <input type="date" name="end_date" class="rounded-md border px-2 py-1 text-sm" />
-          </div>
+        <div class="md:col-span-1">
+          <label class="block text-xs font-medium text-gray-700">End date</label>
+          <input type="date" name="end_date" class="mt-1 w-full rounded-md border px-3 py-2 text-sm" />
         </div>
 
         <div class="md:col-span-6">
-          <button class="rounded-md bg-gray-900 px-4 py-2 text-white hover:bg-black">
-            Add
-          </button>
+          <label class="block text-xs font-medium text-gray-700">Note (optional)</label>
+          <input name="note" class="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="e.g. Rent" />
+        </div>
+
+        <div class="md:col-span-6 flex items-center justify-end">
+          <button type="submit" class="rounded-md bg-black px-4 py-2 text-sm text-white">Create</button>
         </div>
       </form>
-    </section>
+    </div>
 
-    <section class="rounded-lg border bg-white p-4">
-      <h2 class="mb-3 font-semibold">Existing budgets</h2>
+    <!-- Filters (same placement as transactions) -->
+    {% include "_budget_filters.html" %}
+
+    <!-- Existing Budgets -->
+    <div class="rounded-lg border bg-white shadow-sm">
+      <div class="border-b p-4">
+        <h2 class="font-semibold">Budgets</h2>
+      </div>
 
       {% if budgets and budgets|length > 0 %}
-        <ul class="space-y-2">
-          {% for b in budgets %}
-            <li class="rounded-md border px-3 py-2">
-              <div class="flex flex-wrap items-center justify-between gap-2">
-                <div class="text-sm">
-                  <span class="font-medium">
-                    {% if b.category_name is defined %}{{ b.category_name }}
-                    {% elif b.category is defined and b.category and b.category.name is defined %}{{ b.category.name }}
-                    {% else %}{{ ((categories_by_id.get(b.category_id) or categories_by_id.get(b.category_id|int) or categories_by_id.get(b.category_id|string)).name if (categories_by_id.get(b.category_id) or categories_by_id.get(b.category_id|int) or categories_by_id.get(b.category_id|string)) else ('Category ' ~ b.category_id)) }}{% endif %}
-                  </span>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-gray-50 text-xs uppercase text-gray-600">
+              <tr>
+                <th class="px-4 py-3">Type</th>
+                <th class="px-4 py-3">Category</th>
+                <th class="px-4 py-3">Subcategory</th>
+                <th class="px-4 py-3">Schedule</th>
+                <th class="px-4 py-3">Amount</th>
+                <th class="px-4 py-3">Note</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y">
+              {% for b in budgets %}
+                {% set cat = categories_by_id.get(b.category_id|int) %}
+                {% set sub = (subcategories_by_id.get(b.subcategory_id|int) if b.subcategory_id else None) %}
 
-                  {% if b.subcategory_name is defined and b.subcategory_name %}
-                    <span class="text-gray-500">/ {{ b.subcategory_name }}</span>
-                  {% elif b.subcategory is defined and b.subcategory and b.subcategory.name is defined %}
-                    <span class="text-gray-500">/ {{ b.subcategory.name }}</span>
-                  {% endif %}
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-3">{{ (b.type.value if b.type is not string else ((b.type.split('.')[-1])|lower)) }}</td>
 
-                  {% if b.is_recurring %}
-                    <span class="ml-2 rounded bg-gray-100 px-2 py-0.5 text-xs">recurring</span>
-                  {% else %}
-                    <span class="ml-2 rounded bg-gray-100 px-2 py-0.5 text-xs">one-time</span>
-                  {% endif %}
-                </div>
+                  <td class="px-4 py-3">
+                    {% if cat %}
+                      {{ (cat.icon ~ ' ' if cat.icon else '') ~ cat.name }}
+                    {% else %}
+                      Category {{ b.category_id }}
+                    {% endif %}
+                  </td>
 
-                <div class="text-sm font-semibold">
-                  {% if cents_to_euros_str is defined %}
-                    {{ cents_to_euros_str(b.amount_cents) }}
-                  {% else %}
-                    {{ b.amount_cents }}
-                  {% endif %}
-                  {{ b.currency }}
-                </div>
-              </div>
+                  <td class="px-4 py-3">
+                    {% if sub %}
+                      {{ (sub.icon ~ ' ' if sub.icon else '') ~ sub.name }}
+                    {% else %}
+                      <span class="text-gray-400">—</span>
+                    {% endif %}
+                  </td>
 
-              <div class="mt-1 text-xs text-gray-600">
-                {% if b.is_recurring %}
-                  {% if b.repeat_unit %}{{ b.repeat_unit }}{% endif %}
-                  {% if b.repeat_interval %} · every {{ b.repeat_interval }}{% endif %}
-                  {% if b.day_of_month %} · day {{ b.day_of_month }}{% endif %}
-                  {% if b.weekday is not none and b.weekday != "" %} · weekday {{ b.weekday }}{% endif %}
-                  {% if b.start_date %} · start {{ b.start_date }}{% endif %}
-                  {% if b.end_date %} · end {{ b.end_date }}{% endif %}
-                {% else %}
-                  {% if b.one_time_date %}{{ b.one_time_date }}{% endif %}
-                {% endif %}
-              </div>
+                  <td class="px-4 py-3">
+                    {% if b.is_recurring %}
+                      <span class="rounded bg-gray-100 px-2 py-1 text-xs">recurring</span>
+                      <div class="mt-1 text-xs text-gray-600">
+                        every {{ b.repeat_interval or 1 }} {{ (b.repeat_unit.value if b.repeat_unit else b.repeat_unit) }}
+                        {% if b.weekday is not none %} • weekday {{ b.weekday }}{% endif %}
+                        {% if b.day_of_month is not none %} • day {{ b.day_of_month }}{% endif %}
+                        {% if b.start_date %} • start {{ b.start_date }}{% endif %}
+                        {% if b.end_date %} • end {{ b.end_date }}{% endif %}
+                      </div>
+                    {% else %}
+                      <span class="rounded bg-gray-100 px-2 py-1 text-xs">one-time</span>
+                      <div class="mt-1 text-xs text-gray-600">
+                        {{ b.one_time_date }}
+                      </div>
+                    {% endif %}
+                  </td>
 
-              {% if b.note %}
-                <div class="mt-1 text-sm">
-                  {{ b.note }}
-                </div>
-              {% endif %}
-            </li>
-          {% endfor %}
-        </ul>
+                  <td class="px-4 py-3">
+                    {{ cents_to_euros_str(b.amount_cents) }} {{ b.currency }}
+                  </td>
+
+                  <td class="px-4 py-3">
+                    {{ b.note if b.note else '' }}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       {% else %}
-        <p class="text-sm text-gray-600">No budgets yet.</p>
+        <div class="p-4 text-sm text-gray-600">No budgets yet.</div>
       {% endif %}
-    </section>
-
+    </div>
   </div>
-
-  <!-- htmx script (only needed if you're using hx-*) -->
-  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
 {% endblock %}

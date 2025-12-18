@@ -1,76 +1,55 @@
-{# IMPORTANT:
-   Do NOT `{% set categories_by_id = ... %}` or `{% set subcategories_by_id = ... %}` here,
-   because it will override the dicts coming from the route and break the budget table rendering.
-#}
+<div class="mb-6 rounded-lg border bg-white p-4 shadow-sm">
+  <form method="get" action="/budget" class="grid gap-3 md:grid-cols-6">
+    {% set f = filters if filters is mapping else {} %}
 
-{% set q = request.query_params %}
-{% set selected_type = q.get("type", "") %}
-{% set selected_category_id = q.get("category_id", "") %}
-{% set selected_subcategory_id = q.get("subcategory_id", "") %}
-{% set date_from = q.get("from", "") %}
-{% set date_to = q.get("to", "") %}
-
-<div class="mb-6 rounded-2xl border bg-white p-4 shadow-sm">
-  <form method="get" action="/budget" class="flex flex-col gap-3 md:flex-row md:items-end">
-    <div class="w-full md:w-44">
-      <label class="block text-sm font-medium text-gray-700">Type</label>
-      <select name="type" class="mt-1 w-full rounded-lg border px-3 py-2">
-        <option value="" {% if selected_type == "" %}selected{% endif %}>All</option>
-        <option value="expense" {% if selected_type == "expense" %}selected{% endif %}>Expense</option>
-        <option value="income" {% if selected_type == "income" %}selected{% endif %}>Income</option>
+    <div class="md:col-span-1">
+      <label class="block text-xs font-medium text-gray-700">Type</label>
+      <select name="type" class="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+        <option value="" {% if not f.get("type") %}selected{% endif %}>(all)</option>
+        <option value="expense" {% if f.get("type") == "expense" %}selected{% endif %}>expense</option>
+        <option value="income" {% if f.get("type") == "income" %}selected{% endif %}>income</option>
       </select>
     </div>
 
-    <div class="w-full md:w-60">
-      <label class="block text-sm font-medium text-gray-700">Category</label>
+    <div class="md:col-span-1">
+      <label class="block text-xs font-medium text-gray-700">Schedule</label>
+      <select name="schedule" class="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+        <option value="" {% if not f.get("schedule") %}selected{% endif %}>(all)</option>
+        <option value="one-time" {% if f.get("schedule") == "one-time" %}selected{% endif %}>one-time</option>
+        <option value="recurring" {% if f.get("schedule") == "recurring" %}selected{% endif %}>recurring</option>
+      </select>
+    </div>
+
+    <div class="md:col-span-2">
+      <label class="block text-xs font-medium text-gray-700">Category</label>
       <select
         name="category_id"
-        class="mt-1 w-full rounded-lg border px-3 py-2"
+        id="f_category_id"
+        class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
         hx-get="/budget/subcategories"
         hx-trigger="change"
-        hx-target="#budget-filter-subcategory"
-        hx-include="this"
+        hx-target="#f_subcategory_id"
+        hx-include="#f_category_id"
       >
-        <option value="">All</option>
+        <option value="" {% if not f.get("category_id") %}selected{% endif %}>(all)</option>
         {% for c in categories %}
-          {% set label = (c.icon or '') ~ ' ' ~ c.name %}
-          <option value="{{ c.id }}" {% if selected_category_id == (c.id|string) %}selected{% endif %}>
-            {{ label.strip() }}
+          <option value="{{ c.id }}" {% if f.get("category_id") == (c.id|string) %}selected{% endif %}>
+            {{ (c.icon ~ ' ' if c.icon else '') ~ c.name }}
           </option>
         {% endfor %}
       </select>
     </div>
 
-    <div class="w-full md:w-60">
-      <label class="block text-sm font-medium text-gray-700">Subcategory</label>
-      <select id="budget-filter-subcategory" name="subcategory_id" class="mt-1 w-full rounded-lg border px-3 py-2">
-        <option value="">All</option>
-        {# Options will be loaded by HTMX when category changes #}
+    <div class="md:col-span-2">
+      <label class="block text-xs font-medium text-gray-700">Subcategory</label>
+      <select name="subcategory_id" id="f_subcategory_id" class="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+        <option value="" {% if not f.get("subcategory_id") %}selected{% endif %}>(all)</option>
       </select>
     </div>
 
-    <div class="w-full md:w-44">
-      <label class="block text-sm font-medium text-gray-700">From</label>
-      <input type="date" name="from" value="{{ date_from }}" class="mt-1 w-full rounded-lg border px-3 py-2" />
-    </div>
-
-    <div class="w-full md:w-44">
-      <label class="block text-sm font-medium text-gray-700">To</label>
-      <input type="date" name="to" value="{{ date_to }}" class="mt-1 w-full rounded-lg border px-3 py-2" />
-    </div>
-
-    <div class="flex gap-2">
-      <button class="rounded-lg bg-black px-4 py-2 text-white">Apply</button>
-      <a class="rounded-lg border px-4 py-2" href="/budget">Reset</a>
+    <div class="md:col-span-6 flex items-end gap-2">
+      <button type="submit" class="rounded-md bg-black px-3 py-2 text-sm text-white">Apply</button>
+      <a href="/budget" class="rounded-md border px-3 py-2 text-sm">Reset</a>
     </div>
   </form>
 </div>
-
-{% if selected_category_id %}
-  <div
-    hx-get="/budget/subcategories?category_id={{ selected_category_id }}"
-    hx-trigger="load"
-    hx-target="#budget-filter-subcategory"
-    hx-swap="innerHTML"
-  ></div>
-{% endif %}
