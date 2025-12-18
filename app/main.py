@@ -1,3 +1,4 @@
+from app.routes import transactions
 from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -22,3 +23,5 @@ app.include_router(dashboard_router)
 app.include_router(categories_router)
 app.include_router(budgets_router)
 
+
+app.include_router(transactions.router)

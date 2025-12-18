@@ -75,3 +75,35 @@ class Budget(SQLModel, table=True):
 
     note: str | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ----------------------------
+# Transactions
+# ----------------------------
+from datetime import datetime, date as _date
+from typing import Optional
+
+from sqlmodel import Field
+
+
+class Transaction(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    user_id: int = Field(index=True)
+
+    date: _date = Field(index=True)
+
+    # Reuse BudgetType enum: "income" / "expense"
+    type: BudgetType = Field(index=True)
+
+    category_id: int = Field(index=True)
+    subcategory_id: Optional[int] = Field(default=None, index=True)
+
+    description: Optional[str] = None
+
+    amount_cents: int
+    currency: str = "EUR"
+
+    note: Optional[str] = None
+
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
