@@ -31,3 +31,49 @@ def validate_budget(b: Budget) -> None:
         # recurrence fields should be empty
         if any([b.repeat_unit, b.repeat_interval, b.day_of_month, b.weekday, b.start_date, b.end_date]):
             raise ValidationError("One-time budget must not have recurrence fields.")
+
+def validate_transaction(t) -> None:
+    """
+    Basic transaction validation (DB-independent).
+    Expects a Transaction-like object with attributes:
+      - date, type, category_id, amount_cents, currency, description
+      - optional: subcategory_id, note
+    """
+    # date
+    if getattr(t, "date", None) is None:
+        raise ValidationError("Date is required.")
+
+    # type
+    tx_type = getattr(t, "type", None)
+    if tx_type is None:
+        raise ValidationError("Type is required (income/expense).")
+    tx_type_val = getattr(tx_type, "value", str(tx_type))
+    if str(tx_type_val) not in ("income", "expense"):
+        raise ValidationError("Type must be 'income' or 'expense'.")
+
+    # category
+    cat_id = getattr(t, "category_id", None)
+    if cat_id is None or (isinstance(cat_id, int) and cat_id <= 0):
+        raise ValidationError("Category is required.")
+
+    # amount
+    amount_cents = getattr(t, "amount_cents", None)
+    if amount_cents is None:
+        raise ValidationError("Amount is required.")
+    try:
+        amount_int = int(amount_cents)
+    except Exception:
+        raise ValidationError("Amount is invalid.")
+    if amount_int <= 0:
+        raise ValidationError("Amount must be greater than 0.")
+
+    # currency
+    currency = (getattr(t, "currency", None) or "").strip().upper()
+    if not currency:
+        raise ValidationError("Currency is required.")
+
+    # description
+    desc = (getattr(t, "description", None) or "").strip()
+    if not desc:
+        raise ValidationError("Description is required.")
+

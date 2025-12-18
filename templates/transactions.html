@@ -1,6 +1,9 @@
 {% extends "_base.html" %}
 
 {% block content %}
+
+  {% include "_transaction_filters.html" %}
+
   <div class="max-w-5xl mx-auto px-4 py-8 space-y-8">
 
     <div class="flex items-center justify-between">
@@ -158,7 +161,7 @@
             {% for t in transactions %}
               <tr>
                 <td class="px-6 py-4 whitespace-nowrap">{{ t.date }}</td>
-                <td class="px-6 py-4 whitespace-nowrap">{{ t.type }}</td>
+                <td class="px-6 py-4 whitespace-nowrap">{{ (t.type.value if t.type is not none and t.type.value is defined else t.type) }}</td>
 
                 {# FIX: don't render "None " when icon is missing #}
                 <td class="px-6 py-4 whitespace-nowrap">

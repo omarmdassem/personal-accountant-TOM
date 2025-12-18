@@ -1,0 +1,92 @@
+{# transactions filters partial - expects `filters` to be a TxFilters object (attrs), not a dict #}
+{% set f = filters %}
+
+<section class="mb-6 rounded-xl border bg-white p-4 shadow-sm">
+  <div class="flex items-center justify-between">
+    <h2 class="text-base font-semibold">Filters</h2>
+    <a href="/transactions" class="text-sm underline">Clear</a>
+  </div>
+
+  <form id="tx_filters_form" method="get" action="/transactions" class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-6">
+    <!-- Type -->
+    <div class="md:col-span-1">
+      <label class="text-sm font-medium">Type</label>
+      <select name="type" class="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+        <option value="" {% if not f.type %}selected{% endif %}>(all)</option>
+        <option value="expense" {% if f.type == "expense" %}selected{% endif %}>Expense</option>
+        <option value="income" {% if f.type == "income" %}selected{% endif %}>Income</option>
+      </select>
+    </div>
+
+    <!-- Category -->
+    <div class="md:col-span-2">
+      <label class="text-sm font-medium">Category</label>
+      <select
+        name="category_id"
+        id="category_id"
+        class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+        hx-get="/transactions/subcategories"
+        hx-include="#tx_filters_form"
+        hx-target="#subcategory_id"
+        hx-trigger="change"
+      >
+        <option value="" {% if not f.category_id %}selected{% endif %}>(all)</option>
+        {% for c in categories %}
+          {% set c_selected = (f.category_id and (c.id|string) == (f.category_id|string)) %}
+          <option value="{{ c.id }}" {% if c_selected %}selected{% endif %}>
+            {{ (c.icon or '') }} {{ c.name }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Subcategory -->
+    <div class="md:col-span-2">
+      <label class="text-sm font-medium">Subcategory</label>
+      <select name="subcategory_id" id="subcategory_id" class="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+        <option value="" {% if not f.subcategory_id %}selected{% endif %}>(all)</option>
+
+        {# Server-rendered options (HTMX will replace these when category changes) #}
+        {% if f.category_id %}
+          {% for s in subcategories if (s.category_id|string) == (f.category_id|string) %}
+            {% set s_selected = (f.subcategory_id and (s.id|string) == (f.subcategory_id|string)) %}
+            <option value="{{ s.id }}" {% if s_selected %}selected{% endif %}>
+              {{ (s.icon or '') }} {{ s.name }}
+            </option>
+          {% endfor %}
+        {% endif %}
+      </select>
+    </div>
+
+    <!-- Date from -->
+    <div class="md:col-span-1">
+      <label class="text-sm font-medium">From</label>
+      <input
+        type="date"
+        name="date_from"
+        value="{{ f.date_from or '' }}"
+        class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+      />
+    </div>
+
+    <!-- Date to -->
+    <div class="md:col-span-1">
+      <label class="text-sm font-medium">To</label>
+      <input
+        type="date"
+        name="date_to"
+        value="{{ f.date_to or '' }}"
+        class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+      />
+    </div>
+
+    <div class="md:col-span-6 flex gap-2">
+      <button type="submit" class="rounded-md bg-black px-4 py-2 text-sm text-white">
+        Apply
+      </button>
+      <a href="/transactions" class="rounded-md border px-4 py-2 text-sm">
+        Reset
+      </a>
+    </div>
+  </form>
+</section>

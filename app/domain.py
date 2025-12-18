@@ -4,6 +4,12 @@ class BudgetType(str, Enum):
     INCOME = "income"
     EXPENSE = "expense"
 
+
+
+class TransactionType(str, Enum):
+    income = "income"
+    expense = "expense"
+
 class RepeatUnit(str, Enum):
     WEEKLY = "weekly"
     MONTHLY = "monthly"
