@@ -1,0 +1,129 @@
+{% extends "_base.html" %}
+
+{% block content %}
+  <div class="max-w-5xl mx-auto px-4 py-8 space-y-6">
+    <div class="flex items-center justify-between">
+      <h1 class="text-2xl font-semibold">Review Import</h1>
+      <a href="/transactions/import" class="text-sm underline">Back</a>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="rounded-xl border bg-white px-4 py-3">
+        <div class="text-sm text-gray-500">Valid rows</div>
+        <div class="text-2xl font-semibold">{{ valid_count }}</div>
+      </div>
+      <div class="rounded-xl border bg-white px-4 py-3">
+        <div class="text-sm text-gray-500">Invalid rows</div>
+        <div class="text-2xl font-semibold">{{ invalid_count }}</div>
+      </div>
+      <div class="rounded-xl border bg-white px-4 py-3">
+        <div class="text-sm text-gray-500">Duplicates vs existing</div>
+        <div class="text-2xl font-semibold">{{ dup_count }}</div>
+      </div>
+    </div>
+
+    <div class="rounded-2xl border bg-white shadow-sm">
+      <div class="border-b px-6 py-4">
+        <h2 class="text-lg font-semibold">Apply</h2>
+        <p class="text-sm text-gray-600 mt-1">
+          Keep will add rows even if duplicates exist. Replace will delete matching existing rows first.
+        </p>
+      </div>
+
+      <div class="px-6 py-5 flex gap-3">
+        <form method="post" action="/transactions/import/apply">
+          <input type="hidden" name="action" value="keep" />
+          <button class="rounded-md border px-4 py-2 text-sm hover:bg-gray-50" type="submit">
+            Apply (Keep)
+          </button>
+        </form>
+
+        <form method="post" action="/transactions/import/apply">
+          <input type="hidden" name="action" value="replace" />
+          <button class="rounded-md bg-black px-4 py-2 text-sm text-white hover:bg-gray-900" type="submit">
+            Apply (Replace)
+          </button>
+        </form>
+      </div>
+    </div>
+
+    {% if invalid_rows and invalid_rows|length > 0 %}
+      <div class="rounded-2xl border bg-white shadow-sm overflow-hidden">
+        <div class="border-b px-6 py-4">
+          <h2 class="text-lg font-semibold">Invalid rows</h2>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead class="bg-gray-50 text-gray-600">
+              <tr>
+                <th class="text-left px-6 py-3">Row</th>
+                <th class="text-left px-6 py-3">Error</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y">
+              {% for r in invalid_rows %}
+                <tr>
+                  <td class="px-6 py-4">{{ r.rownum }}</td>
+                  <td class="px-6 py-4">{{ r.error }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="rounded-2xl border bg-white shadow-sm overflow-hidden">
+      <div class="border-b px-6 py-4">
+        <h2 class="text-lg font-semibold">Preview</h2>
+        <p class="text-sm text-gray-600 mt-1">Showing up to first 25 valid rows.</p>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-gray-50 text-gray-600">
+            <tr>
+              <th class="text-left px-6 py-3">Duplicate?</th>
+              <th class="text-left px-6 py-3">Type</th>
+              <th class="text-left px-6 py-3">Category</th>
+              <th class="text-left px-6 py-3">Subcategory</th>
+              <th class="text-left px-6 py-3">Date</th>
+              <th class="text-left px-6 py-3">Description</th>
+              <th class="text-left px-6 py-3">Amount</th>
+              <th class="text-left px-6 py-3">Note</th>
+            </tr>
+          </thead>
+
+          <tbody class="divide-y">
+            {% for item in preview_rows %}
+              {% set r = item.row %}
+              <tr class="{% if item.is_duplicate %}bg-yellow-50{% endif %}">
+                <td class="px-6 py-4">
+                  {% if item.is_duplicate %}
+                    <span class="rounded-full bg-yellow-100 px-2 py-1 text-xs">duplicate</span>
+                  {% else %}
+                    <span class="text-gray-400">—</span>
+                  {% endif %}
+                </td>
+                <td class="px-6 py-4">{{ r.type }}</td>
+                <td class="px-6 py-4">{{ r.category }}</td>
+                <td class="px-6 py-4">{{ r.subcategory or "—" }}</td>
+                <td class="px-6 py-4">{{ r.date }}</td>
+                <td class="px-6 py-4">{{ r.description }}</td>
+                <td class="px-6 py-4 whitespace-nowrap">{{ cents_to_euros_str(r.amount_cents) }} {{ r.currency }}</td>
+                <td class="px-6 py-4">{{ r.note or "" }}</td>
+              </tr>
+            {% endfor %}
+
+            {% if preview_rows|length == 0 %}
+              <tr>
+                <td class="px-6 py-6 text-gray-500" colspan="8">No valid rows found.</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+{% endblock %}

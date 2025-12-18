@@ -393,7 +393,7 @@ def import_transaction_form(
         return RedirectResponse(url="/login", status_code=303)
 
     return templates.TemplateResponse(
-        "transaction_import.html",
+        "transactions_import.html",
         {"request": request, "title": "Import Transactions CSV", "user_id": uid, "error": None},
     )
 
@@ -410,7 +410,7 @@ async def import_transaction_upload(
 
     if not file.filename.lower().endswith(".csv"):
         return templates.TemplateResponse(
-            "transaction_import.html",
+            "transactions_import.html",
             {
                 "request": request,
                 "title": "Import Transactions CSV",
@@ -480,7 +480,7 @@ def import_transaction_review(
         preview.append({"row": r, "is_duplicate": i in duplicates_idx})
 
     return templates.TemplateResponse(
-        "transaction_import_review.html",
+        "transactions_import_review.html",
         {
             "request": request,
             "title": "Review Import",
@@ -558,3 +558,354 @@ def import_transaction_apply(
     _TX_IMPORT_BATCHES.pop(batch_id, None)
 
     return RedirectResponse(url="/transaction", status_code=303)
+
+
+# === TRANSACTIONS CSV IMPORT ===
+# NOTE: early-stage in-memory store for transaction import batches (good for dev/tests).
+_TX_IMPORT_BATCHES: dict[str, dict] = {}
+
+
+def _tx_sig_from_row(row: dict) -> tuple:
+    """Signature used for duplicate detection (ignores note)."""
+    return (
+        row["type"],
+        row["date"],
+        row["category"].strip().lower(),
+        (row.get("subcategory") or "").strip().lower() or None,
+        row["description"].strip().lower(),
+        row["amount_cents"],
+        row["currency"].upper(),
+    )
+
+
+def _tx_sig_from_existing(t, cat_name: str, sub_name: str | None) -> tuple:
+    ttype = t.type.value if hasattr(t.type, "value") else str(t.type)
+    return (
+        str(ttype),
+        t.date,
+        cat_name.strip().lower(),
+        sub_name.strip().lower() if sub_name else None,
+        (t.description or "").strip().lower(),
+        t.amount_cents,
+        (t.currency or "EUR").upper(),
+    )
+
+
+def _tx_parse_date(s: str):
+    s = (s or "").strip()
+    if not s:
+        return None
+    from datetime import date as _date
+    return _date.fromisoformat(s)
+
+
+def _parse_transactions_csv(file_bytes: bytes):
+    """
+    Returns: (valid_rows, invalid_rows)
+    invalid_rows entries: {"rownum": int, "error": str, "raw": dict}
+    """
+    text = file_bytes.decode("utf-8-sig", errors="replace")
+    buf = io.StringIO(text)
+
+    # detect delimiter
+    sample = text[:2048]
+    delimiter = ","
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=[",", ";", "\t"])
+        delimiter = dialect.delimiter
+    except Exception:
+        pass
+
+    reader = csv.DictReader(buf, delimiter=delimiter)
+    if not reader.fieldnames:
+        return [], [{"rownum": 0, "error": "CSV has no header row.", "raw": {}}]
+
+    reader.fieldnames = [h.strip() for h in reader.fieldnames]
+    headers = {h.lower() for h in reader.fieldnames}
+
+    required = {"date", "type", "category", "description", "amount", "currency"}
+    missing = required - headers
+    if missing:
+        return [], [{"rownum": 0, "error": f"Missing required columns: {', '.join(sorted(missing))}", "raw": {}}]
+
+    valid = []
+    invalid = []
+
+    for i, raw in enumerate(reader, start=2):
+        row = {(k or "").strip().lower(): (v or "").strip() for k, v in raw.items()}
+        try:
+            d = _tx_parse_date(row.get("date", ""))
+            if d is None:
+                raise ValueError("date is required (YYYY-MM-DD).")
+
+            ttype = (row.get("type") or "").strip().lower()
+            if ttype not in ("income", "expense"):
+                raise ValueError("type must be 'income' or 'expense'.")
+
+            cat = (row.get("category") or "").strip()
+            if not cat:
+                raise ValueError("category is required.")
+
+            sub = (row.get("subcategory") or "").strip() or None
+
+            desc = (row.get("description") or "").strip()
+            if not desc:
+                raise ValueError("description is required.")
+
+            amount_str = row.get("amount", "")
+            amount_cents = euros_to_cents(amount_str)
+
+            cur = (row.get("currency") or "EUR").strip().upper() or "EUR"
+
+            note = (row.get("note") or "").strip() or None
+
+            valid.append({
+                "date": d,
+                "type": ttype,
+                "category": cat,
+                "subcategory": sub,
+                "description": desc,
+                "amount_cents": amount_cents,
+                "currency": cur,
+                "note": note,
+            })
+        except MoneyParseError as e:
+            invalid.append({"rownum": i, "error": str(e), "raw": row})
+        except Exception as e:
+            invalid.append({"rownum": i, "error": str(e), "raw": row})
+
+    return valid, invalid
+
+
+def _tx_ensure_category(db: Session, uid: int, name: str):
+    existing = db.exec(select(Category).where(Category.user_id == uid, Category.name == name)).first()
+    if existing:
+        return existing
+    c = Category(user_id=uid, name=name.strip(), icon=None)
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+    return c
+
+
+def _tx_ensure_subcategory(db: Session, uid: int, category_id: int, name: str):
+    existing = db.exec(
+        select(Subcategory).where(
+            Subcategory.user_id == uid,
+            Subcategory.category_id == category_id,
+            Subcategory.name == name,
+        )
+    ).first()
+    if existing:
+        return existing
+    s = Subcategory(user_id=uid, category_id=category_id, name=name.strip(), icon=None)
+    db.add(s)
+    db.commit()
+    db.refresh(s)
+    return s
+
+
+@router.get("/transactions/template.csv")
+def download_transactions_template(uid: int | None = Depends(current_user_id)):
+    if not uid:
+        return RedirectResponse(url="/login", status_code=303)
+
+    header = ["date", "type", "category", "subcategory", "description", "amount", "currency", "note"]
+    example_rows = [
+        ["2025-02-01", "expense", "Housing", "Rent", "Monthly rent", "900.00", "EUR", ""],
+        ["2025-02-03", "expense", "Insurance", "", "Car insurance", "120.50", "EUR", "Paid yearly"],
+        ["2025-02-10", "income", "Salary", "", "February salary", "2500.00", "EUR", ""],
+    ]
+
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(header)
+    for r in example_rows:
+        w.writerow(r)
+
+    content = out.getvalue().encode("utf-8")
+    return Response(
+        content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="transactions_template.csv"'},
+    )
+
+
+@router.get("/transactions/import", response_class=HTMLResponse)
+def import_transactions_form(request: Request, uid: int | None = Depends(current_user_id)):
+    if not uid:
+        return RedirectResponse(url="/login", status_code=303)
+
+    return templates.TemplateResponse(
+        "transactions_import.html",
+        {"request": request, "title": "Import Transactions CSV", "user_id": uid, "error": None},
+    )
+
+
+@router.post("/transactions/import")
+async def import_transactions_upload(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_session),
+    uid: int | None = Depends(current_user_id),
+):
+    if not uid:
+        return RedirectResponse(url="/login", status_code=303)
+
+    if not file.filename.lower().endswith(".csv"):
+        return templates.TemplateResponse(
+            "transactions_import.html",
+            {"request": request, "title": "Import Transactions CSV", "user_id": uid, "error": "Please upload a .csv file."},
+            status_code=400,
+        )
+
+    data = await file.read()
+    valid_rows, invalid_rows = _parse_transactions_csv(data)
+
+    # compute existing transaction signatures (by category/subcategory names)
+    cats = db.exec(select(Category).where(Category.user_id == uid)).all()
+    subs = db.exec(select(Subcategory).where(Subcategory.user_id == uid)).all()
+    cat_by_id = {c.id: c.name for c in cats}
+    sub_by_id = {s.id: (s.name, s.category_id) for s in subs}
+
+    existing = db.exec(select(Transaction).where(Transaction.user_id == uid)).all()
+    existing_sigs: dict[tuple, list[int]] = {}
+    for t in existing:
+        cat_name = cat_by_id.get(t.category_id, f"#{t.category_id}")
+        sub_name = None
+        if getattr(t, "subcategory_id", None):
+            sub_name = sub_by_id.get(t.subcategory_id, (None, None))[0]
+        sig = _tx_sig_from_existing(t, cat_name, sub_name)
+        existing_sigs.setdefault(sig, []).append(t.id)
+
+    duplicates = []
+    for idx, r in enumerate(valid_rows):
+        sig = _tx_sig_from_row(r)
+        if sig in existing_sigs:
+            duplicates.append(idx)
+
+    batch_id = str(uuid4())
+    _TX_IMPORT_BATCHES[batch_id] = {
+        "uid": uid,
+        "valid_rows": valid_rows,
+        "invalid_rows": invalid_rows,
+        "duplicates_idx": duplicates,
+        "existing_sigs": existing_sigs,
+    }
+
+    request.session["transaction_import_batch_id"] = batch_id
+    return RedirectResponse(url="/transactions/import/review", status_code=303)
+
+
+@router.get("/transactions/import/review", response_class=HTMLResponse)
+def import_transactions_review(request: Request, uid: int | None = Depends(current_user_id)):
+    if not uid:
+        return RedirectResponse(url="/login", status_code=303)
+
+    batch_id = request.session.get("transaction_import_batch_id")
+    batch = _TX_IMPORT_BATCHES.get(batch_id) if batch_id else None
+    if not batch or batch.get("uid") != uid:
+        return RedirectResponse(url="/transactions/import", status_code=303)
+
+    valid_rows = batch["valid_rows"]
+    invalid_rows = batch["invalid_rows"]
+    duplicates_idx = set(batch["duplicates_idx"])
+
+    preview = []
+    for i, r in enumerate(valid_rows[:25]):
+        preview.append({"row": r, "is_duplicate": i in duplicates_idx})
+
+    return templates.TemplateResponse(
+        "transactions_import_review.html",
+        {
+            "request": request,
+            "title": "Review Import",
+            "user_id": uid,
+            "valid_count": len(valid_rows),
+            "invalid_count": len(invalid_rows),
+            "dup_count": len(duplicates_idx),
+            "invalid_rows": invalid_rows,
+            "preview_rows": preview,
+            "cents_to_euros_str": cents_to_euros_str,
+        },
+    )
+
+
+@router.post("/transactions/import/apply")
+def import_transactions_apply(
+    request: Request,
+    action: str = Form(...),  # "keep" or "replace"
+    db: Session = Depends(get_session),
+    uid: int | None = Depends(current_user_id),
+):
+    if not uid:
+        return RedirectResponse(url="/login", status_code=303)
+
+    batch_id = request.session.get("transaction_import_batch_id")
+    batch = _TX_IMPORT_BATCHES.get(batch_id) if batch_id else None
+    if not batch or batch.get("uid") != uid:
+        return RedirectResponse(url="/transactions/import", status_code=303)
+
+    _tx_type_enum = globals().get("TransactionType") or globals().get("BudgetType")
+    if _tx_type_enum is None:
+        raise RuntimeError("Transaction type enum not found. Expected TransactionType or BudgetType.")
+
+    valid_rows = batch["valid_rows"]
+    existing_sigs = batch["existing_sigs"]
+
+    if action not in ("keep", "replace"):
+        return RedirectResponse(url="/transactions/import/review", status_code=303)
+
+    if action == "replace":
+        ids_to_delete: set[int] = set()
+        for r in valid_rows:
+            sig = _tx_sig_from_row(r)
+            for tid in existing_sigs.get(sig, []):
+                ids_to_delete.add(tid)
+
+        if ids_to_delete:
+            to_delete = db.exec(
+                select(Transaction).where(Transaction.user_id == uid, Transaction.id.in_(ids_to_delete))
+            ).all()
+            for t in to_delete:
+                db.delete(t)
+            db.commit()
+
+    # Insert rows (auto-create missing categories/subcategories)
+    for r in valid_rows:
+        cat = _tx_ensure_category(db, uid, r["category"])
+        sub_id = None
+        if r.get("subcategory"):
+            sub = _tx_ensure_subcategory(db, uid, cat.id, r["subcategory"])
+            sub_id = sub.id
+
+        t = Transaction(
+            user_id=uid,
+            date=r["date"],
+            type=_tx_type_enum(r["type"]),
+            category_id=cat.id,
+            subcategory_id=sub_id,
+            description=r["description"],
+            amount_cents=r["amount_cents"],
+            currency=r["currency"].upper(),
+            note=r.get("note"),
+        )
+
+        # If you have a validator, use it; otherwise keep import resilient.
+        try:
+            validate_transaction  # type: ignore[name-defined]
+        except Exception:
+            db.add(t)
+        else:
+            try:
+                validate_transaction(t)  # type: ignore[name-defined]
+                db.add(t)
+            except Exception:
+                continue
+
+    db.commit()
+
+    request.session.pop("transaction_import_batch_id", None)
+    _TX_IMPORT_BATCHES.pop(batch_id, None)
+
+    return RedirectResponse(url="/transactions", status_code=303)

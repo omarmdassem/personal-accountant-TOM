@@ -1,147 +1,206 @@
 {% extends "_base.html" %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto px-4 py-6">
-  <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-semibold">Transactions</h1>
-    <div class="text-sm text-gray-500">User #{{ user_id }}</div>
-  </div>
+  <div class="max-w-5xl mx-auto px-4 py-8 space-y-8">
 
-  {% if error %}
-    <div class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800">
-      {{ error }}
-    </div>
-  {% endif %}
+    <div class="flex items-center justify-between">
+      <h1 class="text-2xl font-semibold">Transactions</h1>
 
-  <div class="mt-6 rounded-2xl border bg-white shadow-sm">
-    <div class="border-b px-5 py-4">
-      <h2 class="font-medium">Add Transaction</h2>
-      <p class="text-sm text-gray-500">Enter transactions the same way as budgets.</p>
-    </div>
-
-    <form class="grid grid-cols-1 md:grid-cols-2 gap-4 px-5 py-5" method="post" action="/transaction">
-      <div>
-        <label class="block text-sm font-medium mb-1">Date</label>
-        <input name="date" type="date" class="w-full rounded-lg border px-3 py-2" required>
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium mb-1">Type</label>
-        <select name="type" class="w-full rounded-lg border px-3 py-2" required>
-          <option value="expense">Expense</option>
-          <option value="income">Income</option>
-        </select>
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium mb-1">Category</label>
-        <select
-          id="categorySelect"
-          name="category_id"
-          class="w-full rounded-lg border px-3 py-2"
-          required
-          hx-get="/budget/subcategories"
-          hx-trigger="change"
-          hx-target="#subcategorySelect"
-          hx-swap="innerHTML"
+      <div class="flex items-center gap-2">
+        <a
+          href="/transactions/template.csv"
+          class="inline-flex items-center rounded-md border px-3 py-2 text-sm hover:bg-gray-50"
         >
-          <option value="">Select category…</option>
-          {% for c in categories %}
-            <option value="{{ c.id }}">{{ (c.icon or '') }} {{ c.name }}</option>
-          {% endfor %}
-        </select>
+          Download CSV template
+        </a>
+        <a
+          href="/transactions/import"
+          class="inline-flex items-center rounded-md border px-3 py-2 text-sm hover:bg-gray-50"
+        >
+          Import CSV
+        </a>
       </div>
-
-      <div>
-        <label class="block text-sm font-medium mb-1">Subcategory (optional)</label>
-        <select id="subcategorySelect" name="subcategory_id" class="w-full rounded-lg border px-3 py-2">
-          <option value="">(none)</option>
-        </select>
-      </div>
-
-      <div class="md:col-span-2">
-        <label class="block text-sm font-medium mb-1">Description</label>
-        <input name="description" type="text" class="w-full rounded-lg border px-3 py-2" placeholder="e.g., Grocery shopping">
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium mb-1">Amount</label>
-        <input name="amount_eur" type="text" class="w-full rounded-lg border px-3 py-2" placeholder="e.g., 12.99" required>
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium mb-1">Currency</label>
-        <select name="currency" class="w-full rounded-lg border px-3 py-2">
-          <option value="EUR" selected>EUR</option>
-        </select>
-      </div>
-
-      <div class="md:col-span-2">
-        <label class="block text-sm font-medium mb-1">Note (optional)</label>
-        <input name="note" type="text" class="w-full rounded-lg border px-3 py-2" placeholder="Optional note…">
-      </div>
-
-      <div class="md:col-span-2 flex items-center gap-3">
-        <button class="rounded-lg bg-black text-white px-4 py-2 hover:bg-gray-800" type="submit">
-          Add transaction
-        </button>
-        <a class="text-sm text-gray-600 hover:text-black" href="/budget">Go to Budget</a>
-      </div>
-    </form>
-  </div>
-
-  <div class="mt-6 rounded-2xl border bg-white shadow-sm overflow-hidden">
-    <div class="border-b px-5 py-4">
-      <h2 class="font-medium">Recent Transactions</h2>
     </div>
 
-    <div class="overflow-x-auto">
-      <table class="min-w-full text-sm">
-        <thead class="bg-gray-50 text-gray-600">
-          <tr>
-            <th class="text-left px-4 py-3">Date</th>
-            <th class="text-left px-4 py-3">Type</th>
-            <th class="text-left px-4 py-3">Category</th>
-            <th class="text-left px-4 py-3">Subcategory</th>
-            <th class="text-left px-4 py-3">Description</th>
-            <th class="text-left px-4 py-3">Amount</th>
-            <th class="text-left px-4 py-3">Note</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for t in transactions %}
-            <tr class="border-t">
-              <td class="px-4 py-3">{{ t.date }}</td>
-              <td class="px-4 py-3">{{ t.type.value if t.type else t.type }}</td>
-              <td class="px-4 py-3">
-                {% set c = categories_by_id.get(t.category_id) %}
-                {{ (c.icon if c else '') }} {{ (c.name if c else t.category_id) }}
-              </td>
-              <td class="px-4 py-3">
-                {% if t.subcategory_id %}
-                  {% set s = subcategories_by_id.get(t.subcategory_id) %}
-                  {{ (s.icon if s else '') }} {{ (s.name if s else t.subcategory_id) }}
-                {% else %}
-                  —
-                {% endif %}
-              </td>
-              <td class="px-4 py-3">{{ t.description or "" }}</td>
-              <td class="px-4 py-3">{{ cents_to_euros_str(t.amount_cents) }} {{ t.currency }}</td>
-              <td class="px-4 py-3">{{ t.note or "" }}</td>
-            </tr>
-          {% endfor %}
+    {% if error %}
+      <div class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        {{ error }}
+      </div>
+    {% endif %}
 
-          {% if transactions|length == 0 %}
-            <tr class="border-t">
-              <td class="px-4 py-6 text-gray-500" colspan="7">No transactions yet.</td>
-            </tr>
-          {% endif %}
-        </tbody>
-      </table>
+    <!-- Create Transaction -->
+    <div class="rounded-2xl border bg-white shadow-sm">
+      <div class="border-b px-6 py-4">
+        <h2 class="text-lg font-semibold">Add Transaction</h2>
+      </div>
+
+      <form method="post" action="/transactions" class="px-6 py-5 space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium mb-1">Date</label>
+            <input
+              type="date"
+              name="date"
+              class="w-full rounded-md border px-3 py-2"
+              required
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-1">Type</label>
+            <select name="transaction_type" class="w-full rounded-md border px-3 py-2" required>
+              <option value="expense">expense</option>
+              <option value="income">income</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-1">Category</label>
+            <select
+              name="category_id"
+              class="w-full rounded-md border px-3 py-2"
+              required
+              hx-get="/transactions/subcategories"
+              hx-trigger="change"
+              hx-target="#subcategory_select"
+              hx-swap="outerHTML"
+            >
+              <option value="">Select…</option>
+              {% for c in categories %}
+                <option value="{{ c.id }}">
+                  {% if c.icon %}{{ c.icon }} {% endif %}{{ c.name }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-1">Subcategory (optional)</label>
+
+            {# The backend endpoint returns the full <select ...> element. #}
+            <select id="subcategory_select" name="subcategory_id" class="w-full rounded-md border px-3 py-2">
+              <option value="">(none)</option>
+            </select>
+          </div>
+
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium mb-1">Description</label>
+            <input
+              type="text"
+              name="description"
+              class="w-full rounded-md border px-3 py-2"
+              placeholder="e.g., Grocery shopping"
+              required
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-1">Amount</label>
+            <input
+              type="text"
+              name="amount_eur"
+              class="w-full rounded-md border px-3 py-2"
+              placeholder="e.g., 12.99"
+              required
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-1">Currency</label>
+            <select name="currency" class="w-full rounded-md border px-3 py-2">
+              <option value="EUR">EUR</option>
+            </select>
+          </div>
+
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium mb-1">Note (optional)</label>
+            <input
+              type="text"
+              name="note"
+              class="w-full rounded-md border px-3 py-2"
+              placeholder="Any extra note…"
+            />
+          </div>
+        </div>
+
+        <div class="pt-2">
+          <button
+            type="submit"
+            class="inline-flex items-center rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-900"
+          >
+            Add
+          </button>
+        </div>
+      </form>
     </div>
-  </div>
-</div>
 
-<!-- Make transactions page work even if _base.html doesn't include htmx -->
-<script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <!-- Recent Transactions -->
+    <div class="rounded-2xl border bg-white shadow-sm overflow-hidden">
+      <div class="border-b px-6 py-4">
+        <h2 class="text-lg font-semibold">Recent Transactions</h2>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-gray-50 text-gray-600">
+            <tr>
+              <th class="text-left px-6 py-3">Date</th>
+              <th class="text-left px-6 py-3">Type</th>
+              <th class="text-left px-6 py-3">Category</th>
+              <th class="text-left px-6 py-3">Subcategory</th>
+              <th class="text-left px-6 py-3">Description</th>
+              <th class="text-left px-6 py-3">Amount</th>
+              <th class="text-left px-6 py-3">Note</th>
+            </tr>
+          </thead>
+
+          <tbody class="divide-y">
+            {% for t in transactions %}
+              <tr>
+                <td class="px-6 py-4 whitespace-nowrap">{{ t.date }}</td>
+                <td class="px-6 py-4 whitespace-nowrap">{{ t.type }}</td>
+
+                {# FIX: don't render "None " when icon is missing #}
+                <td class="px-6 py-4 whitespace-nowrap">
+                  {% set cat = categories_by_id.get(t.category_id) %}
+                  {% if cat %}
+                    {% if cat.icon %}{{ cat.icon }} {% endif %}{{ cat.name }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+
+                {# FIX: same for subcategory #}
+                <td class="px-6 py-4 whitespace-nowrap">
+                  {% if t.subcategory_id %}
+                    {% set sub = subcategories_by_id.get(t.subcategory_id) %}
+                    {% if sub %}
+                      {% if sub.icon %}{{ sub.icon }} {% endif %}{{ sub.name }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+
+                <td class="px-6 py-4">{{ t.description }}</td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  {{ cents_to_euros_str(t.amount_cents) }} {{ t.currency }}
+                </td>
+                <td class="px-6 py-4">{{ t.note or "" }}</td>
+              </tr>
+            {% endfor %}
+
+            {% if transactions|length == 0 %}
+              <tr>
+                <td class="px-6 py-6 text-gray-500" colspan="7">No transactions yet.</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
 {% endblock %}
