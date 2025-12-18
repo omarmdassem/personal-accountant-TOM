@@ -1,0 +1,30 @@
+{% extends "_base.html" %}
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 py-6">
+  <h1 class="text-2xl font-semibold">Import Transactions CSV</h1>
+
+  {% if error %}
+    <div class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800">
+      {{ error }}
+    </div>
+  {% endif %}
+
+  <div class="mt-6 rounded-2xl border bg-white shadow-sm p-5">
+    <p class="text-sm text-gray-600 mb-4">
+      Upload a CSV file. You can also download a template.
+    </p>
+
+    <div class="flex items-center gap-3 mb-4">
+      <a class="text-sm underline" href="/transaction/template.csv">Download CSV template</a>
+      <a class="text-sm underline" href="/transaction">Back to Transactions</a>
+    </div>
+
+    <form method="post" action="/transaction/import" enctype="multipart/form-data" class="flex items-center gap-3">
+      <input type="file" name="file" accept=".csv" class="block w-full text-sm" required />
+      <button class="rounded-lg bg-black text-white px-4 py-2 hover:bg-gray-800" type="submit">
+        Upload
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}
