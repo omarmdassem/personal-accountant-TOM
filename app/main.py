@@ -1,4 +1,5 @@
 from app.routes import transactions
+from app.routes import dashboard
 from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -18,6 +19,7 @@ def on_startup():
     init_db()
 
 app.include_router(pages_router)
+app.include_router(dashboard.router)
 app.include_router(auth_router)
 app.include_router(dashboard_router)
 app.include_router(categories_router)

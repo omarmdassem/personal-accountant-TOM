@@ -1,14 +1,126 @@
 {% extends "_base.html" %}
 
 {% block content %}
-  <h1 class="text-2xl font-semibold mb-2">Dashboard</h1>
+<div class="max-w-6xl mx-auto px-4 py-6">
 
-  <div class="rounded-md border bg-white px-4 py-3">
-    <p class="text-sm text-gray-700">
-      Welcome! You are user <span class="font-medium">#{{ user_id }}</span>.
-    </p>
-    <p class="mt-2 text-sm text-gray-600">
-      Next: we’ll add Transactions (create + list) here.
-    </p>
+  <div class="flex items-start justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-semibold">Dashboard</h1>
+      <p class="text-sm text-gray-600">
+        {{ month_start }} → {{ month_end }}
+      </p>
+    </div>
+
+    <form method="get" action="/dashboard" class="flex items-end gap-2">
+      <div>
+        <label class="block text-xs text-gray-600">Year</label>
+        <input name="year" value="{{ filters.year }}" class="w-24 rounded-md border px-3 py-2 text-sm" />
+      </div>
+      <div>
+        <label class="block text-xs text-gray-600">Month</label>
+        <select name="month" class="w-28 rounded-md border px-3 py-2 text-sm">
+          {% for m in range(1,13) %}
+            <option value="{{ m }}" {% if m == filters.month %}selected{% endif %}>{{ "%02d"|format(m) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button class="rounded-md bg-black px-4 py-2 text-sm text-white">Apply</button>
+    </form>
   </div>
+
+  <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="rounded-xl border bg-white p-4">
+      <div class="text-sm text-gray-600">Actuals (Transactions)</div>
+      <div class="mt-2 grid grid-cols-3 gap-3">
+        <div>
+          <div class="text-xs text-gray-500">Income</div>
+          <div class="text-lg font-semibold">{{ cents_to_euros_str(actual_income) }} EUR</div>
+        </div>
+        <div>
+          <div class="text-xs text-gray-500">Expense</div>
+          <div class="text-lg font-semibold">{{ cents_to_euros_str(actual_expense) }} EUR</div>
+        </div>
+        <div>
+          <div class="text-xs text-gray-500">Net</div>
+          <div class="text-lg font-semibold">{{ cents_to_euros_str(actual_net) }} EUR</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rounded-xl border bg-white p-4">
+      <div class="text-sm text-gray-600">Planned (Budgets)</div>
+      <div class="mt-2 grid grid-cols-3 gap-3">
+        <div>
+          <div class="text-xs text-gray-500">Income</div>
+          <div class="text-lg font-semibold">{{ cents_to_euros_str(planned_income) }} EUR</div>
+        </div>
+        <div>
+          <div class="text-xs text-gray-500">Expense</div>
+          <div class="text-lg font-semibold">{{ cents_to_euros_str(planned_expense) }} EUR</div>
+        </div>
+        <div>
+          <div class="text-xs text-gray-500">Net</div>
+          <div class="text-lg font-semibold">{{ cents_to_euros_str(planned_net) }} EUR</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="rounded-xl border bg-white p-4">
+      <div class="flex items-center justify-between">
+        <div class="text-sm font-semibold">Expense by category (Planned vs Actual)</div>
+      </div>
+      <div class="mt-3">
+        <canvas id="expenseChart" height="140"></canvas>
+      </div>
+    </div>
+
+    <div class="rounded-xl border bg-white p-4">
+      <div class="text-sm font-semibold">Daily net trend</div>
+      <div class="mt-3">
+        <canvas id="netChart" height="140"></canvas>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  const expenseData = {{ chart_expense_json|safe }};
+  const netData = {{ chart_daily_net_json|safe }};
+
+  const ctxExpense = document.getElementById("expenseChart");
+  new Chart(ctxExpense, {
+    type: "bar",
+    data: {
+      labels: expenseData.labels,
+      datasets: [
+        { label: "Planned (EUR)", data: expenseData.planned },
+        { label: "Actual (EUR)", data: expenseData.actual },
+      ],
+    },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+
+  const ctxNet = document.getElementById("netChart");
+  new Chart(ctxNet, {
+    type: "line",
+    data: {
+      labels: netData.labels,
+      datasets: [
+        { label: "Net (EUR)", data: netData.values, tension: 0.2 },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: true } },
+      scales: { y: { beginAtZero: false } }
+    }
+  });
+</script>
 {% endblock %}
