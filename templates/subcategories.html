@@ -3,7 +3,11 @@
 
 <div class="mx-auto max-w-4xl">
   <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-semibold">Categories</h1>
+    <div>
+      <h1 class="text-2xl font-semibold">Subcategories</h1>
+      <p class="text-sm text-gray-600 mt-1">Category: <span class="font-medium">{{ category.icon or "" }} {{ category.name }}</span></p>
+    </div>
+    <a href="/categories" class="text-sm font-medium text-gray-700 hover:text-gray-900">Back</a>
   </div>
 
   {% if error %}
@@ -13,15 +17,15 @@
   {% endif %}
 
   <div class="mt-6 rounded-xl border bg-white p-4 shadow-sm">
-    <h2 class="mb-3 font-medium">Add category</h2>
-    <form method="post" action="/categories" class="grid grid-cols-1 gap-3 md:grid-cols-3">
+    <h2 class="mb-3 font-medium">Add subcategory</h2>
+    <form method="post" action="/categories/{{ category.id }}/subcategories" class="grid grid-cols-1 gap-3 md:grid-cols-3">
       <div class="md:col-span-2">
         <label class="text-sm text-gray-700">Name</label>
-        <input name="name" class="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="e.g., Housing" required />
+        <input name="name" class="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="e.g., Rent" required />
       </div>
       <div>
         <label class="text-sm text-gray-700">Icon (optional)</label>
-        <input name="icon" class="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="🏠" />
+        <input name="icon" class="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="🏡" />
       </div>
       <div class="md:col-span-3">
         <button class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800">
@@ -33,11 +37,11 @@
 
   <div class="mt-6 rounded-xl border bg-white shadow-sm">
     <div class="border-b px-4 py-3">
-      <h2 class="font-medium">Your categories</h2>
-      <p class="text-sm text-gray-600">Edit or hard delete (deletes related subcategories, budgets and transactions).</p>
+      <h2 class="font-medium">Your subcategories</h2>
+      <p class="text-sm text-gray-600">Edit or hard delete (deletes related budgets and transactions).</p>
     </div>
 
-    {% if categories and categories|length > 0 %}
+    {% if subcategories and subcategories|length > 0 %}
       <div class="overflow-x-auto">
         <table class="min-w-full text-left text-sm">
           <thead class="border-b bg-gray-50 text-gray-600">
@@ -48,20 +52,17 @@
             </tr>
           </thead>
           <tbody class="divide-y">
-            {% for c in categories %}
+            {% for s in subcategories %}
               <tr>
-                <td class="px-4 py-3">{{ c.icon or "" }}</td>
-                <td class="px-4 py-3">{{ c.name }}</td>
+                <td class="px-4 py-3">{{ s.icon or "" }}</td>
+                <td class="px-4 py-3">{{ s.name }}</td>
                 <td class="px-4 py-3">
                   <div class="flex flex-wrap gap-2">
                     <a class="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-gray-50"
-                       href="/categories/{{ c.id }}/subcategories">Subcategories</a>
+                       href="/categories/{{ category.id }}/subcategories/{{ s.id }}/edit">Edit</a>
 
-                    <a class="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-gray-50"
-                       href="/categories/{{ c.id }}/edit">Edit</a>
-
-                    <form method="post" action="/categories/{{ c.id }}/delete" class="inline"
-                          onsubmit="return confirm('Hard delete category? This will also delete its subcategories, budgets, and transactions.');">
+                    <form method="post" action="/categories/{{ category.id }}/subcategories/{{ s.id }}/delete" class="inline"
+                          onsubmit="return confirm('Hard delete subcategory? This will also delete budgets and transactions that use it.');">
                       <button class="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100">
                         Delete
                       </button>
@@ -74,7 +75,7 @@
         </table>
       </div>
     {% else %}
-      <div class="px-4 py-6 text-sm text-gray-600">No categories yet.</div>
+      <div class="px-4 py-6 text-sm text-gray-600">No subcategories yet.</div>
     {% endif %}
   </div>
 </div>
