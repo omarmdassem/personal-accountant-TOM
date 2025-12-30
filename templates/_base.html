@@ -9,6 +9,8 @@
   </head>
 
   <body class="bg-gray-50 text-gray-900">
+  {% set _uid = (user_id if user_id is defined else request.session.get('user_id')) %}
+
     <header class="border-b bg-white">
       <div class="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
         <div class="font-semibold">Personal Accountant</div>
@@ -19,7 +21,9 @@
           <a href="/budget" class="hover:underline">Budget</a>
           <a href="/dashboard" class="hover:underline">Dashboard</a>
           <a href="/transaction" class="...">Transactions</a>
-        </nav>
+        
+        {% if _uid %}<form action="/logout" method="post" class="inline"><button type="submit" class="text-sm font-medium text-gray-700 hover:text-gray-900">Logout</button></form>{% endif %}
+</nav>
       </div>
     </header>
 

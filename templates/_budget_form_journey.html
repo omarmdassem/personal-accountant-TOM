@@ -1,0 +1,325 @@
+{# Journey-style Budget Form (keeps same POST field names as backend expects) #}
+
+<div class="rounded-xl border bg-white p-5 shadow-sm">
+  <h2 class="text-lg font-semibold mb-1">Add budget</h2>
+  {% if error %}
+    <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+      {{ error }}
+    </div>
+  {% endif %}
+
+  
+
+  <form action="/budget" method="post" class="space-y-5" id="budget-journey-form">
+    <!-- Step 1: Type -->
+    <fieldset class="rounded-lg border p-4">
+      <legend class="px-2 text-sm font-semibold text-gray-700">1) What is this?</legend>
+      <div class="mt-2 flex flex-wrap gap-3">
+        <label class="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+          <input type="radio" name="budget_type" value="expense" class="accent-black" required>
+          <span>Expense</span>
+        </label>
+        <label class="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+          <input type="radio" name="budget_type" value="income" class="accent-black" required>
+          <span>Income</span>
+        </label>
+      </div>
+    </fieldset>
+
+    <!-- Step 2: Schedule -->
+    <fieldset class="rounded-lg border p-4" id="step-schedule" style="display:none;">
+      <legend class="px-2 text-sm font-semibold text-gray-700">2) Is it one-time or recurring?</legend>
+
+      <!-- IMPORTANT: backend uses is_recurring truthy check.
+           We use radio with name=is_recurring and values "" / "on" so backend logic stays unchanged. -->
+      <div class="mt-2 flex flex-wrap gap-3">
+        <label class="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+          <input type="radio" name="is_recurring" value="" class="accent-black" id="is_recurring_no">
+          <span>One-time</span>
+        </label>
+        <label class="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+          <input type="radio" name="is_recurring" value="on" class="accent-black" id="is_recurring_yes">
+          <span>Recurring</span>
+        </label>
+      </div>
+      <p class="mt-2 text-xs text-gray-500">You can change this later — fields will update automatically.</p>
+    </fieldset>
+
+    <!-- Step 3: Details -->
+    <fieldset class="rounded-lg border p-4" id="step-details" style="display:none;">
+      <legend class="px-2 text-sm font-semibold text-gray-700">3) Details</legend>
+
+      <div class="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+          <label for="category_id" class="block text-sm font-medium text-gray-700">Category *</label>
+          <select
+            name="category_id"
+            id="category_id"
+            class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+            hx-get="/budget/subcategories"
+            hx-trigger="change"
+            hx-target="#subcategory_id"
+            hx-swap="innerHTML"
+            required
+          >
+            <option value="" selected>(select)</option>
+            {% for c in categories %}
+              <option value="{{ c.id }}">{{ (c.icon ~ ' ' if c.icon else '') ~ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label for="subcategory_id" class="block text-sm font-medium text-gray-700">Subcategory</label>
+          <select name="subcategory_id" id="subcategory_id" class="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+            <option value="" selected>(none)</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="amount_eur" class="block text-sm font-medium text-gray-700">Amount (EUR) *</label>
+          <input
+            type="text"
+            name="amount_eur"
+            id="amount_eur"
+            class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+            placeholder="e.g. 99.99"
+            required
+          >
+        </div>
+
+        <div>
+          <label for="currency" class="block text-sm font-medium text-gray-700">Currency</label>
+          <select name="currency" id="currency" class="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+            <option value="EUR" selected>EUR</option>
+            <option value="USD">USD</option>
+            <option value="GBP">GBP</option>
+          </select>
+        </div>
+
+        <!-- One-time fields -->
+        <div id="one-time-fields" class="md:col-span-2" style="display:none;">
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label for="one_time_date" class="block text-sm font-medium text-gray-700">Date (one-time) *</label>
+              <input
+                type="date"
+                name="one_time_date"
+                id="one_time_date"
+                class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+              >
+            </div>
+          </div>
+        </div>
+
+        <!-- Recurring fields -->
+        <div id="recurring-fields" class="md:col-span-2" style="display:none;">
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div>
+              <label for="repeat_unit" class="block text-sm font-medium text-gray-700">Repeat unit *</label>
+              <select name="repeat_unit" id="repeat_unit" class="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+                <option value="" selected>(select)</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="repeat_interval" class="block text-sm font-medium text-gray-700">Every *</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                name="repeat_interval"
+                id="repeat_interval"
+                class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                placeholder="1"
+              >
+            </div>
+
+            <div id="weekday-wrap" style="display:none;">
+              <label for="weekday" class="block text-sm font-medium text-gray-700">Weekday *</label>
+              <select name="weekday" id="weekday" class="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+                <option value="" selected>(select)</option>
+                <option value="0">Mon</option>
+                <option value="1">Tue</option>
+                <option value="2">Wed</option>
+                <option value="3">Thu</option>
+                <option value="4">Fri</option>
+                <option value="5">Sat</option>
+                <option value="6">Sun</option>
+              </select>
+            </div>
+
+            <div id="dom-wrap" style="display:none;">
+              <label for="day_of_month" class="block text-sm font-medium text-gray-700">Day of month *</label>
+              <input
+                type="number"
+                min="1"
+                max="31"
+                step="1"
+                name="day_of_month"
+                id="day_of_month"
+                class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                placeholder="1..31"
+              >
+            </div>
+
+            <div>
+              <label for="start_date" class="block text-sm font-medium text-gray-700">Start date</label>
+              <input type="date" name="start_date" id="start_date" class="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+            </div>
+
+            <div>
+              <label for="end_date" class="block text-sm font-medium text-gray-700">End date</label>
+              <input type="date" name="end_date" id="end_date" class="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+            </div>
+          </div>
+        </div>
+
+        <div class="md:col-span-2">
+          <label for="note" class="block text-sm font-medium text-gray-700">Note</label>
+          <input type="text" name="note" id="note" class="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="optional">
+        </div>
+      </div>
+
+      <div class="pt-2 flex items-center gap-3">
+        <button type="submit" class="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-gray-900">
+          Save
+        </button>
+        <span class="text-xs text-gray-500">Only the shown fields are required.</span>
+      </div>
+    </fieldset>
+  </form>
+</div>
+
+<script>
+(function () {
+  const form = document.getElementById("budget-journey-form");
+  if (!form) return;
+
+  const stepSchedule = document.getElementById("step-schedule");
+  const stepDetails = document.getElementById("step-details");
+
+  const oneTimeWrap = document.getElementById("one-time-fields");
+  const recurringWrap = document.getElementById("recurring-fields");
+
+  const oneTimeDate = document.getElementById("one_time_date");
+
+  const repeatUnit = document.getElementById("repeat_unit");
+  const repeatInterval = document.getElementById("repeat_interval");
+  const weekdayWrap = document.getElementById("weekday-wrap");
+  const domWrap = document.getElementById("dom-wrap");
+  const weekday = document.getElementById("weekday");
+  const dom = document.getElementById("day_of_month");
+
+  const isRecurringNo = document.getElementById("is_recurring_no");
+  const isRecurringYes = document.getElementById("is_recurring_yes");
+
+  function clearRecurringFields() {
+    if (repeatUnit) repeatUnit.value = "";
+    if (repeatInterval) repeatInterval.value = "";
+    if (weekday) weekday.value = "";
+    if (dom) dom.value = "";
+    const sd = document.getElementById("start_date");
+    const ed = document.getElementById("end_date");
+    if (sd) sd.value = "";
+    if (ed) ed.value = "";
+  }
+
+  function clearOneTimeFields() {
+    if (oneTimeDate) oneTimeDate.value = "";
+  }
+
+  function setRequired(el, yes) {
+    if (!el) return;
+    if (yes) el.setAttribute("required", "required");
+    else el.removeAttribute("required");
+  }
+
+  function updateRecurringSubFields() {
+    const unit = (repeatUnit?.value || "").toLowerCase();
+
+    // base recurring requirements
+    setRequired(repeatUnit, true);
+    setRequired(repeatInterval, true);
+
+    if (unit === "weekly") {
+      if (weekdayWrap) weekdayWrap.style.display = "";
+      if (domWrap) domWrap.style.display = "none";
+      setRequired(weekday, true);
+      setRequired(dom, false);
+      if (dom) dom.value = "";
+    } else if (unit === "monthly" || unit === "yearly") {
+      if (weekdayWrap) weekdayWrap.style.display = "none";
+      if (domWrap) domWrap.style.display = "";
+      setRequired(dom, true);
+      setRequired(weekday, false);
+      if (weekday) weekday.value = "";
+    } else {
+      if (weekdayWrap) weekdayWrap.style.display = "none";
+      if (domWrap) domWrap.style.display = "none";
+      setRequired(dom, false);
+      setRequired(weekday, false);
+      if (weekday) weekday.value = "";
+      if (dom) dom.value = "";
+    }
+  }
+
+  function showScheduleStep() {
+    if (stepSchedule) stepSchedule.style.display = "";
+  }
+
+  function showDetailsStep() {
+    if (stepDetails) stepDetails.style.display = "";
+  }
+
+  function updateBySchedule() {
+    const recurring = !!(isRecurringYes && isRecurringYes.checked);
+
+    showDetailsStep();
+
+    if (recurring) {
+      if (recurringWrap) recurringWrap.style.display = "";
+      if (oneTimeWrap) oneTimeWrap.style.display = "none";
+
+      // required: recurring, not one-time
+      setRequired(oneTimeDate, false);
+      clearOneTimeFields();
+      updateRecurringSubFields();
+    } else {
+      if (recurringWrap) recurringWrap.style.display = "none";
+      if (oneTimeWrap) oneTimeWrap.style.display = "";
+
+      // required: one-time date, not recurring
+      setRequired(oneTimeDate, true);
+      setRequired(repeatUnit, false);
+      setRequired(repeatInterval, false);
+      setRequired(weekday, false);
+      setRequired(dom, false);
+
+      clearRecurringFields();
+      if (weekdayWrap) weekdayWrap.style.display = "none";
+      if (domWrap) domWrap.style.display = "none";
+    }
+  }
+
+  // Step 1 -> Step 2 reveal
+  const typeRadios = form.querySelectorAll('input[name="budget_type"]');
+  typeRadios.forEach(r => r.addEventListener("change", () => {
+    showScheduleStep();
+  }));
+
+  // Step 2 schedule changes -> update fields
+  if (isRecurringNo) isRecurringNo.addEventListener("change", updateBySchedule);
+  if (isRecurringYes) isRecurringYes.addEventListener("change", updateBySchedule);
+
+  // Recurring unit changes -> show weekday/dom properly
+  if (repeatUnit) repeatUnit.addEventListener("change", () => {
+    // Only adjust if recurring is selected
+    if (isRecurringYes && isRecurringYes.checked) updateRecurringSubFields();
+  });
+
+})();
+</script>
