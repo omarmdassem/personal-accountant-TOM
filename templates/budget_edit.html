@@ -1,0 +1,283 @@
+{% extends "_base.html" %}
+{% block content %}
+
+{# budget_edit.html — journey-like edit UX #}
+{% set is_rec = (budget.is_recurring == True) %}
+{% set budget_type_value = (budget.type.value if budget.type is not string else budget.type) %}
+{% set repeat_unit_value = (budget.repeat_unit.value if budget.repeat_unit and budget.repeat_unit is not string else budget.repeat_unit) %}
+
+<div class="mx-auto max-w-5xl px-4 py-6">
+  <div class="mb-4 flex items-center justify-between">
+    <h1 class="text-xl font-semibold">Edit budget</h1>
+    <a href="/budget" class="text-sm font-medium text-gray-700 hover:text-gray-900">← Back</a>
+  </div>
+
+  {% if error %}
+    <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+      {{ error }}
+    </div>
+  {% endif %}
+
+  <div class="rounded-xl border bg-white p-5 shadow-sm">
+    <form action="/budget/{{ budget.id }}/edit" method="post" class="space-y-5" id="budget-edit-form">
+      <!-- Step 1: Type -->
+      <fieldset class="rounded-lg border p-4">
+        <legend class="px-2 text-sm font-semibold text-gray-700">1) Type</legend>
+        <div class="mt-2 flex flex-wrap gap-3">
+          <label class="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+            <input type="radio" name="budget_type" value="expense" class="accent-black" required
+              {% if budget_type_value|string|lower == "expense" %}checked{% endif %}>
+            <span>Expense</span>
+          </label>
+          <label class="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+            <input type="radio" name="budget_type" value="income" class="accent-black" required
+              {% if budget_type_value|string|lower == "income" %}checked{% endif %}>
+            <span>Income</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <!-- Step 2: Schedule -->
+      <fieldset class="rounded-lg border p-4">
+        <legend class="px-2 text-sm font-semibold text-gray-700">2) Schedule</legend>
+
+        <div class="mt-2 flex flex-wrap gap-3">
+          {# IMPORTANT: backend uses is_recurring truthy check. Keep values "" / "on" #}
+          <label class="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+            <input type="radio" name="is_recurring" value="" class="accent-black" id="is_recurring_no"
+              {% if not is_rec %}checked{% endif %}>
+            <span>One-time</span>
+          </label>
+          <label class="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+            <input type="radio" name="is_recurring" value="on" class="accent-black" id="is_recurring_yes"
+              {% if is_rec %}checked{% endif %}>
+            <span>Recurring</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <!-- Step 3: Details -->
+      <fieldset class="rounded-lg border p-4">
+        <legend class="px-2 text-sm font-semibold text-gray-700">3) Details</legend>
+
+        <div class="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div>
+            <label for="category_id" class="block text-sm font-medium text-gray-700">Category *</label>
+            <select
+              name="category_id"
+              id="category_id"
+              class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+              hx-get="/budget/subcategories"
+              hx-trigger="change"
+              hx-target="#subcategory_id"
+              hx-swap="innerHTML"
+              required
+            >
+              <option value="">(select)</option>
+              {% for c in categories %}
+                <option value="{{ c.id }}" {% if c.id == budget.category_id %}selected{% endif %}>{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <label for="subcategory_id" class="block text-sm font-medium text-gray-700">Subcategory</label>
+            <select name="subcategory_id" id="subcategory_id" class="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+              <option value="" {% if not budget.subcategory_id %}selected{% endif %}>(none)</option>
+
+              {# Initial options for current category (works with either dict or list, or nothing) #}
+              {% if subcategories_by_id is defined %}
+                {% for sid, s in subcategories_by_id.items() %}
+                  {% if s.category_id == budget.category_id %}
+                    <option value="{{ s.id }}" {% if budget.subcategory_id == s.id %}selected{% endif %}>
+                      {{ (s.icon or '') ~ ' ' ~ s.name }}
+                    </option>
+                  {% endif %}
+                {% endfor %}
+              {% elif subcategories is defined %}
+                {% for s in subcategories %}
+                  {% if s.category_id == budget.category_id %}
+                    <option value="{{ s.id }}" {% if budget.subcategory_id == s.id %}selected{% endif %}>
+                      {{ (s.icon or '') ~ ' ' ~ s.name }}
+                    </option>
+                  {% endif %}
+                {% endfor %}
+              {% endif %}
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Amount *</label>
+            <input
+              type="text"
+              name="amount_eur"
+              class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+              value="{{ cents_to_euros_str(budget.amount_cents) }}"
+              required
+            >
+            <p class="mt-1 text-xs text-gray-500">Use format like 120.50</p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Currency</label>
+            <select name="currency" class="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+              {% set cur = (budget.currency or "EUR")|upper %}
+              <option value="EUR" {% if cur == "EUR" %}selected{% endif %}>EUR</option>
+              <option value="USD" {% if cur == "USD" %}selected{% endif %}>USD</option>
+              <option value="GBP" {% if cur == "GBP" %}selected{% endif %}>GBP</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- One-time block -->
+        <div id="one-time-block" class="mt-5 rounded-lg border bg-gray-50 p-4">
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Date *</label>
+              <input
+                type="date"
+                name="one_time_date"
+                id="one_time_date"
+                class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                value="{{ budget.one_time_date or '' }}"
+              >
+            </div>
+          </div>
+        </div>
+
+        <!-- Recurring block -->
+        <div id="recurring-block" class="mt-5 rounded-lg border bg-gray-50 p-4">
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Repeat unit *</label>
+              <select name="repeat_unit" id="repeat_unit" class="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+                <option value="">(select)</option>
+                <option value="weekly" {% if repeat_unit_value == "weekly" %}selected{% endif %}>Weekly</option>
+                <option value="monthly" {% if repeat_unit_value == "monthly" %}selected{% endif %}>Monthly</option>
+                <option value="yearly" {% if repeat_unit_value == "yearly" %}selected{% endif %}>Yearly</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Repeat interval *</label>
+              <input
+                type="number"
+                min="1"
+                name="repeat_interval"
+                id="repeat_interval"
+                class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                value="{{ budget.repeat_interval or '' }}"
+              >
+            </div>
+
+            <div id="weekday-wrap">
+              <label class="block text-sm font-medium text-gray-700">Weekday *</label>
+              <select name="weekday" id="weekday" class="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+                <option value="">(select)</option>
+                <option value="0" {% if budget.weekday == 0 %}selected{% endif %}>Mon</option>
+                <option value="1" {% if budget.weekday == 1 %}selected{% endif %}>Tue</option>
+                <option value="2" {% if budget.weekday == 2 %}selected{% endif %}>Wed</option>
+                <option value="3" {% if budget.weekday == 3 %}selected{% endif %}>Thu</option>
+                <option value="4" {% if budget.weekday == 4 %}selected{% endif %}>Fri</option>
+                <option value="5" {% if budget.weekday == 5 %}selected{% endif %}>Sat</option>
+                <option value="6" {% if budget.weekday == 6 %}selected{% endif %}>Sun</option>
+              </select>
+            </div>
+
+            <div id="dom-wrap">
+              <label class="block text-sm font-medium text-gray-700">Day of month *</label>
+              <input
+                type="number"
+                min="1"
+                max="31"
+                name="day_of_month"
+                id="day_of_month"
+                class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                value="{{ budget.day_of_month or '' }}"
+              >
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Start date</label>
+              <input type="date" name="start_date" class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                     value="{{ budget.start_date or '' }}">
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700">End date</label>
+              <input type="date" name="end_date" class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                     value="{{ budget.end_date or '' }}">
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-5">
+          <label class="block text-sm font-medium text-gray-700">Note</label>
+          <input type="text" name="note" class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                 value="{{ budget.note or '' }}">
+        </div>
+      </fieldset>
+
+      <div class="flex items-center justify-end gap-3">
+        <a href="/budget" class="rounded-md border px-4 py-2 text-sm hover:bg-gray-50">Cancel</a>
+        <button type="submit" class="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-gray-900">
+          Save changes
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  const oneTimeBlock = document.getElementById("one-time-block");
+  const recurringBlock = document.getElementById("recurring-block");
+
+  const rNo = document.getElementById("is_recurring_no");
+  const rYes = document.getElementById("is_recurring_yes");
+
+  const oneTimeDate = document.getElementById("one_time_date");
+
+  const repeatUnit = document.getElementById("repeat_unit");
+  const repeatInterval = document.getElementById("repeat_interval");
+  const weekdayWrap = document.getElementById("weekday-wrap");
+  const domWrap = document.getElementById("dom-wrap");
+  const weekday = document.getElementById("weekday");
+  const dom = document.getElementById("day_of_month");
+
+  function setRequired(el, req) {
+    if (!el) return;
+    if (req) el.setAttribute("required", "required");
+    else el.removeAttribute("required");
+  }
+
+  function toggleRecurringFields() {
+    const isRecurring = rYes && rYes.checked;
+
+    if (oneTimeBlock) oneTimeBlock.style.display = isRecurring ? "none" : "block";
+    if (recurringBlock) recurringBlock.style.display = isRecurring ? "block" : "none";
+
+    setRequired(oneTimeDate, !isRecurring);
+
+    setRequired(repeatUnit, isRecurring);
+    setRequired(repeatInterval, isRecurring);
+
+    const unit = (repeatUnit && repeatUnit.value) ? repeatUnit.value : "";
+    const weekly = (unit === "weekly");
+
+    if (weekdayWrap) weekdayWrap.style.display = (isRecurring && weekly) ? "block" : "none";
+    if (domWrap) domWrap.style.display = (isRecurring && !weekly) ? "block" : "none";
+
+    setRequired(weekday, isRecurring && weekly);
+    setRequired(dom, isRecurring && !weekly);
+  }
+
+  if (rNo) rNo.addEventListener("change", toggleRecurringFields);
+  if (rYes) rYes.addEventListener("change", toggleRecurringFields);
+  if (repeatUnit) repeatUnit.addEventListener("change", toggleRecurringFields);
+
+  toggleRecurringFields();
+})();
+</script>
+
+{% endblock %}

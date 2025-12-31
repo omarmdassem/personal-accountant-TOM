@@ -95,7 +95,14 @@
                   {{ cents_to_euros_str(t.amount_cents) }} {{ t.currency }}
                 </td>
                 <td class="px-6 py-4">{{ t.note or "" }}</td>
-              </tr>
+              
+                  <td class="px-4 py-3 text-right whitespace-nowrap">
+                    <a href="/transaction/{{ t.id }}/edit" class="text-sm font-medium text-gray-800 hover:text-black">Edit</a>
+                    <form action="/transaction/{{ t.id }}/delete" method="post" class="inline" onsubmit="return confirm('Delete transaction?');">
+                      <button type="submit" class="ml-3 text-sm font-medium text-red-600 hover:text-red-700">Delete</button>
+                    </form>
+                  </td>
+</tr>
             {% endfor %}
 
             {% if transactions|length == 0 %}

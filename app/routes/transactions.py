@@ -631,3 +631,195 @@ def import_transactions_apply(
     _IMPORT_BATCHES.pop(batch_id, None)
 
     return RedirectResponse(url="/transaction", status_code=303)
+
+
+@router.get("/transaction/{tx_id}/edit", response_class=HTMLResponse)
+def edit_transaction_form(
+    request: Request,
+    tx_id: int,
+    db: Session = Depends(get_session),
+    uid: int | None = Depends(current_user_id),
+):
+    if not uid:
+        return RedirectResponse(url="/login", status_code=303)
+
+    tx = db.exec(select(Transaction).where(Transaction.id == tx_id, Transaction.user_id == uid)).first()
+    if not tx:
+        return RedirectResponse(url="/transactions", status_code=303)
+
+    categories = db.exec(select(Category).where(Category.user_id == uid).order_by(Category.name)).all()
+    subcategories = db.exec(
+        select(Subcategory)
+        .where(Subcategory.user_id == uid, Subcategory.category_id == tx.category_id)
+        .order_by(Subcategory.name)
+    ).all()
+
+    return templates.TemplateResponse(
+        "transaction_edit.html",
+        {
+            "request": request,
+            "title": "Edit Transaction",
+            "user_id": uid,
+            "tx": tx,
+            "categories": categories,
+            "subcategories": subcategories,
+            "error": None,
+            "cents_to_euros_str": cents_to_euros_str,
+        },
+    )
+
+
+@router.post("/transaction/{tx_id}/edit")
+def edit_transaction_apply(
+    request: Request,
+    tx_id: int,
+    tx_type: TransactionType = Form(...),
+    category_id: str = Form(""),
+    subcategory_id: str = Form(""),
+    description: str = Form(...),
+    amount_eur: str = Form(...),
+    currency: str = Form("EUR"),
+    tx_date: date | None = Form(None),
+    note: str = Form(""),
+    db: Session = Depends(get_session),
+    uid: int | None = Depends(current_user_id),
+):
+    if not uid:
+        return RedirectResponse(url="/login", status_code=303)
+
+    tx = db.exec(select(Transaction).where(Transaction.id == tx_id, Transaction.user_id == uid)).first()
+    if not tx:
+        return RedirectResponse(url="/transactions", status_code=303)
+
+    if not category_id.strip():
+        return edit_transaction_form(request, tx_id, db, uid)
+
+    try:
+        category_id_int = int(category_id)
+    except ValueError:
+        return edit_transaction_form(request, tx_id, db, uid)
+
+    cat = db.exec(select(Category).where(Category.id == category_id_int, Category.user_id == uid)).first()
+    if not cat:
+        return edit_transaction_form(request, tx_id, db, uid)
+
+    sub_id: int | None = None
+    if subcategory_id.strip():
+        try:
+            sub_id = int(subcategory_id)
+        except ValueError:
+            sub_id = None
+
+        if sub_id is not None:
+            sub = db.exec(
+                select(Subcategory).where(
+                    Subcategory.id == sub_id,
+                    Subcategory.user_id == uid,
+                    Subcategory.category_id == category_id_int,
+                )
+            ).first()
+            if not sub:
+                sub_id = None
+
+    try:
+        amount_cents = euros_to_cents(amount_eur)
+    except MoneyParseError:
+        categories = db.exec(select(Category).where(Category.user_id == uid).order_by(Category.name)).all()
+        subcategories = db.exec(
+            select(Subcategory)
+            .where(Subcategory.user_id == uid, Subcategory.category_id == category_id_int)
+            .order_by(Subcategory.name)
+        ).all()
+        return templates.TemplateResponse(
+            "transaction_edit.html",
+            {
+                "request": request,
+                "title": "Edit Transaction",
+                "user_id": uid,
+                "tx": tx,
+                "categories": categories,
+                "subcategories": subcategories,
+                "error": "Invalid amount.",
+                "cents_to_euros_str": cents_to_euros_str,
+            },
+            status_code=400,
+        )
+
+    if tx_date is None:
+        categories = db.exec(select(Category).where(Category.user_id == uid).order_by(Category.name)).all()
+        subcategories = db.exec(
+            select(Subcategory)
+            .where(Subcategory.user_id == uid, Subcategory.category_id == category_id_int)
+            .order_by(Subcategory.name)
+        ).all()
+        return templates.TemplateResponse(
+            "transaction_edit.html",
+            {
+                "request": request,
+                "title": "Edit Transaction",
+                "user_id": uid,
+                "tx": tx,
+                "categories": categories,
+                "subcategories": subcategories,
+                "error": "Date is required.",
+                "cents_to_euros_str": cents_to_euros_str,
+            },
+            status_code=400,
+        )
+
+    # apply updates
+    tx.type = tx_type
+    tx.category_id = category_id_int
+    tx.subcategory_id = sub_id
+    tx.description = description.strip()
+    tx.amount_cents = amount_cents
+    tx.currency = currency.strip().upper()
+    tx.date = tx_date
+    tx.note = (note.strip() or None)
+
+    try:
+        validate_transaction(tx)
+    except ValidationError as e:
+        categories = db.exec(select(Category).where(Category.user_id == uid).order_by(Category.name)).all()
+        subcategories = db.exec(
+            select(Subcategory)
+            .where(Subcategory.user_id == uid, Subcategory.category_id == category_id_int)
+            .order_by(Subcategory.name)
+        ).all()
+        return templates.TemplateResponse(
+            "transaction_edit.html",
+            {
+                "request": request,
+                "title": "Edit Transaction",
+                "user_id": uid,
+                "tx": tx,
+                "categories": categories,
+                "subcategories": subcategories,
+                "error": str(e),
+                "cents_to_euros_str": cents_to_euros_str,
+            },
+            status_code=400,
+        )
+
+    db.add(tx)
+    db.commit()
+
+    return RedirectResponse(url="/transactions", status_code=303)
+
+
+@router.post("/transaction/{tx_id}/delete")
+def delete_transaction(
+    request: Request,
+    tx_id: int,
+    db: Session = Depends(get_session),
+    uid: int | None = Depends(current_user_id),
+):
+    if not uid:
+        return RedirectResponse(url="/login", status_code=303)
+
+    tx = db.exec(select(Transaction).where(Transaction.id == tx_id, Transaction.user_id == uid)).first()
+    if tx:
+        db.delete(tx)
+        db.commit()
+
+    return RedirectResponse(url="/transactions", status_code=303)

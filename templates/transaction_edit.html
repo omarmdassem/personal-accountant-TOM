@@ -1,0 +1,131 @@
+{% extends "_base.html" %}
+{% block content %}
+
+{# Support either variable name: tx or transaction #}
+{% set t = tx if tx is defined else transaction %}
+
+<div class="max-w-3xl mx-auto">
+  <div class="rounded-xl border bg-white p-5 shadow-sm">
+    <h1 class="text-lg font-semibold mb-1">Edit transaction</h1>
+
+    {% if error %}
+      <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        {{ error }}
+      </div>
+    {% endif %}
+
+    {# normalize enum -> "income"/"expense" #}
+    {% set current_type =
+      (
+        t.type.value if t.type is not string
+        else t.type
+      )
+      | string
+      | lower
+    %}
+
+    <form action="/transaction/{{ t.id }}/edit" method="post" class="space-y-5">
+
+      <!-- Type -->
+      <fieldset class="rounded-lg border p-4">
+        <legend class="px-2 text-sm font-semibold text-gray-700">Type</legend>
+        <div class="mt-2 flex flex-wrap gap-3">
+          <label class="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+            <input type="radio" name="tx_type" value="expense" class="accent-black" required
+                   {% if current_type == "expense" %}checked{% endif %}>
+            <span>Expense</span>
+          </label>
+          <label class="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+            <input type="radio" name="tx_type" value="income" class="accent-black" required
+                   {% if current_type == "income" %}checked{% endif %}>
+            <span>Income</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <!-- Date -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Date *</label>
+        <input type="date" name="tx_date" class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+               value="{{ t.date }}" required>
+      </div>
+
+      <!-- Category / Subcategory -->
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+          <label for="category_id" class="block text-sm font-medium text-gray-700">Category *</label>
+          <select
+            name="category_id"
+            id="category_id"
+            class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+            hx-get="/transaction/subcategories"
+            hx-trigger="change"
+            hx-target="#tx_subcategory_id"
+            hx-swap="innerHTML"
+            required
+          >
+            <option value="">(select)</option>
+            {% for c in categories %}
+              <option value="{{ c.id }}" {% if c.id == t.category_id %}selected{% endif %}>
+                {{ (c.icon or '') }} {{ c.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label for="tx_subcategory_id" class="block text-sm font-medium text-gray-700">Subcategory</label>
+          <select name="subcategory_id" id="tx_subcategory_id" class="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+            <option value="">(none)</option>
+            {% if subcategories %}
+              {% for s in subcategories %}
+                <option value="{{ s.id }}" {% if t.subcategory_id and s.id == t.subcategory_id %}selected{% endif %}>
+                  {{ (s.icon or '') }} {{ s.name }}
+                </option>
+              {% endfor %}
+            {% endif %}
+          </select>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Description *</label>
+        <input type="text" name="description" class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+               value="{{ t.description }}" required>
+      </div>
+
+      <!-- Amount / Currency -->
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Amount (EUR) *</label>
+          <input type="text" name="amount_eur" class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                 value="{{ cents_to_euros_str(t.amount_cents) }}" required>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Currency</label>
+          <select name="currency" class="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+            <option value="EUR" {% if (t.currency or 'EUR') == 'EUR' %}selected{% endif %}>EUR</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Note -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Note</label>
+        <input type="text" name="note" class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+               value="{{ t.note or '' }}">
+      </div>
+
+      <div class="flex items-center gap-3">
+        <button type="submit" class="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-900">
+          Save
+        </button>
+        <a href="/transactions" class="text-sm text-gray-700 hover:text-gray-900">Cancel</a>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+{% endblock %}

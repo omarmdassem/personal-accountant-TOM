@@ -834,3 +834,247 @@ def create_budget(
     db.commit()
 
     return RedirectResponse(url="/budget", status_code=303)
+
+
+@router.get("/budget/{budget_id}/edit", response_class=HTMLResponse)
+def edit_budget_form(
+    request: Request,
+    budget_id: int,
+    db: Session = Depends(get_session),
+    uid: int | None = Depends(current_user_id),
+):
+    if not uid:
+        return RedirectResponse(url="/login", status_code=303)
+
+    budget = db.exec(select(Budget).where(Budget.id == budget_id, Budget.user_id == uid)).first()
+    if not budget:
+        return RedirectResponse(url="/budget", status_code=303)
+
+    categories = db.exec(select(Category).where(Category.user_id == uid).order_by(Category.name)).all()
+    subcategories = db.exec(
+        select(Subcategory)
+        .where(Subcategory.user_id == uid, Subcategory.category_id == budget.category_id)
+        .order_by(Subcategory.name)
+    ).all()
+
+    return templates.TemplateResponse(
+        "budget_edit.html",
+        {
+            "request": request,
+            "title": "Edit Budget",
+            "user_id": uid,
+            "budget": budget,
+            "categories": categories,
+            "subcategories": subcategories,
+            "error": None,
+            "cents_to_euros_str": cents_to_euros_str,
+        },
+    )
+
+
+@router.post("/budget/{budget_id}/edit")
+def edit_budget_apply(
+    request: Request,
+    budget_id: int,
+    budget_type: BudgetType = Form(...),
+
+    category_id: str = Form(""),
+    subcategory_id: str = Form(""),
+
+    amount_eur: str = Form(...),
+    currency: str = Form("EUR"),
+
+    one_time_date: date | None = Form(None),
+
+    is_recurring: str = Form(""),
+    repeat_unit: str = Form(""),
+    repeat_interval: str = Form(""),
+    day_of_month: str = Form(""),
+    weekday: str = Form(""),
+    start_date: date | None = Form(None),
+    end_date: date | None = Form(None),
+
+    note: str = Form(""),
+
+    db: Session = Depends(get_session),
+    uid: int | None = Depends(current_user_id),
+):
+    if not uid:
+        return RedirectResponse(url="/login", status_code=303)
+
+    budget = db.exec(select(Budget).where(Budget.id == budget_id, Budget.user_id == uid)).first()
+    if not budget:
+        return RedirectResponse(url="/budget", status_code=303)
+
+    if not category_id.strip():
+        return edit_budget_form(request, budget_id, db, uid)
+
+    try:
+        category_id_int = int(category_id)
+    except ValueError:
+        return edit_budget_form(request, budget_id, db, uid)
+
+    cat = db.exec(select(Category).where(Category.id == category_id_int, Category.user_id == uid)).first()
+    if not cat:
+        return edit_budget_form(request, budget_id, db, uid)
+
+    sub_id: int | None = None
+    if subcategory_id.strip():
+        try:
+            sub_id = int(subcategory_id)
+        except ValueError:
+            sub_id = None
+
+        if sub_id is not None:
+            sub = db.exec(
+                select(Subcategory).where(
+                    Subcategory.id == sub_id,
+                    Subcategory.user_id == uid,
+                    Subcategory.category_id == category_id_int,
+                )
+            ).first()
+            if not sub:
+                sub_id = None
+
+    try:
+        amount_cents = euros_to_cents(amount_eur)
+    except MoneyParseError:
+        # reuse edit form with same page
+        categories = db.exec(select(Category).where(Category.user_id == uid).order_by(Category.name)).all()
+        subcategories = db.exec(
+            select(Subcategory)
+            .where(Subcategory.user_id == uid, Subcategory.category_id == category_id_int)
+            .order_by(Subcategory.name)
+        ).all()
+        return templates.TemplateResponse(
+            "budget_edit.html",
+            {
+                "request": request,
+                "title": "Edit Budget",
+                "user_id": uid,
+                "budget": budget,
+                "categories": categories,
+                "subcategories": subcategories,
+                "error": "Invalid amount.",
+                "cents_to_euros_str": cents_to_euros_str,
+            },
+            status_code=400,
+        )
+
+    recurring = is_recurring.strip().lower() in ("on", "true", "1", "yes")
+
+    ru: RepeatUnit | None = None
+    if recurring and repeat_unit.strip():
+        try:
+            ru = RepeatUnit(repeat_unit.strip().lower())
+        except ValueError:
+            ru = None
+
+    ri: int | None = None
+    if recurring and repeat_interval.strip():
+        try:
+            ri = int(repeat_interval)
+        except ValueError:
+            ri = None
+
+    dom: int | None = None
+    if recurring and day_of_month.strip():
+        try:
+            dom = int(day_of_month)
+        except ValueError:
+            dom = None
+
+    wd: int | None = None
+    if recurring and weekday.strip():
+        try:
+            wd = int(weekday)
+        except ValueError:
+            wd = None
+
+    if not recurring and one_time_date is None:
+        categories = db.exec(select(Category).where(Category.user_id == uid).order_by(Category.name)).all()
+        subcategories = db.exec(
+            select(Subcategory)
+            .where(Subcategory.user_id == uid, Subcategory.category_id == category_id_int)
+            .order_by(Subcategory.name)
+        ).all()
+        return templates.TemplateResponse(
+            "budget_edit.html",
+            {
+                "request": request,
+                "title": "Edit Budget",
+                "user_id": uid,
+                "budget": budget,
+                "categories": categories,
+                "subcategories": subcategories,
+                "error": "Date is required for one-time budget.",
+                "cents_to_euros_str": cents_to_euros_str,
+            },
+            status_code=400,
+        )
+
+    # apply updates
+    budget.type = budget_type
+    budget.category_id = category_id_int
+    budget.subcategory_id = sub_id
+    budget.amount_cents = amount_cents
+    budget.currency = currency.strip().upper()
+
+    budget.is_recurring = recurring
+    budget.one_time_date = None if recurring else one_time_date
+
+    budget.repeat_unit = ru if recurring else None
+    budget.repeat_interval = ri if recurring else None
+    budget.day_of_month = dom if recurring else None
+    budget.weekday = wd if recurring else None
+    budget.start_date = start_date if recurring else None
+    budget.end_date = end_date if recurring else None
+
+    budget.note = (note.strip() or None)
+
+    try:
+        validate_budget(budget)
+    except ValidationError as e:
+        categories = db.exec(select(Category).where(Category.user_id == uid).order_by(Category.name)).all()
+        subcategories = db.exec(
+            select(Subcategory)
+            .where(Subcategory.user_id == uid, Subcategory.category_id == category_id_int)
+            .order_by(Subcategory.name)
+        ).all()
+        return templates.TemplateResponse(
+            "budget_edit.html",
+            {
+                "request": request,
+                "title": "Edit Budget",
+                "user_id": uid,
+                "budget": budget,
+                "categories": categories,
+                "subcategories": subcategories,
+                "error": str(e),
+                "cents_to_euros_str": cents_to_euros_str,
+            },
+            status_code=400,
+        )
+
+    db.add(budget)
+    db.commit()
+
+    return RedirectResponse(url="/budget", status_code=303)
+
+
+@router.post("/budget/{budget_id}/delete")
+def delete_budget(
+    request: Request,
+    budget_id: int,
+    db: Session = Depends(get_session),
+    uid: int | None = Depends(current_user_id),
+):
+    if not uid:
+        return RedirectResponse(url="/login", status_code=303)
+
+    budget = db.exec(select(Budget).where(Budget.id == budget_id, Budget.user_id == uid)).first()
+    if budget:
+        db.delete(budget)
+        db.commit()
+
+    return RedirectResponse(url="/budget", status_code=303)

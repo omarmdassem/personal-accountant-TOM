@@ -97,7 +97,14 @@
                   <td class="px-4 py-3">
                     {{ b.note if b.note else '' }}
                   </td>
-                </tr>
+                
+                  <td class="px-4 py-3 text-right whitespace-nowrap">
+                    <a href="/budget/{{ b.id }}/edit" class="text-sm font-medium text-gray-800 hover:text-black">Edit</a>
+                    <form action="/budget/{{ b.id }}/delete" method="post" class="inline" onsubmit="return confirm('Delete budget?');">
+                      <button type="submit" class="ml-3 text-sm font-medium text-red-600 hover:text-red-700">Delete</button>
+                    </form>
+                  </td>
+</tr>
               {% endfor %}
             </tbody>
           </table>
