@@ -7,7 +7,7 @@
     <a href="/transactions" class="text-sm underline">Clear</a>
   </div>
 
-  <form id="tx_filters_form" method="get" action="/transactions" class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-6">
+  <form id="tx_filters_form" method="get" action="/transaction" class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-6" method="post">
     <!-- Type -->
     <div class="md:col-span-1">
       <label class="text-sm font-medium">Type</label>
@@ -25,7 +25,7 @@
         name="category_id"
         id="category_id"
         class="mt-1 w-full rounded-md border px-3 py-2 text-sm"
-        hx-get="/transactions/subcategories"
+        hx-get="/transaction/subcategories"
         hx-include="#tx_filters_form"
         hx-target="#subcategory_id"
         hx-trigger="change"

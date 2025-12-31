@@ -318,7 +318,9 @@ def transaction_subcategories(
     if not category_id:
         return HTMLResponse('<option value="">(none)</option>', status_code=200)
 
-    cat = db.exec(select(Category).where(Category.id == category_id, Category.user_id == uid)).first()
+    cat = db.exec(
+        select(Category).where(Category.id == category_id, Category.user_id == uid)
+    ).first()
     if not cat:
         return HTMLResponse('<option value="">(none)</option>', status_code=200)
 
@@ -332,8 +334,8 @@ def transaction_subcategories(
     for s in subs:
         label = f"{s.icon or ''} {s.name}".strip()
         options.append(f'<option value="{s.id}">{label}</option>')
-    return HTMLResponse("\n".join(options), status_code=200)
 
+    return HTMLResponse("\n".join(options), status_code=200)
 
 @router.post("/transaction")
 def create_transaction(
